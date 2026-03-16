@@ -1,121 +1,98 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+// App.jsx - Entrada principal con pantalla de configuracion
 
-function App() {
-  const [count, setCount] = useState(0)
+import { useState } from "react";
+import { Board } from "./components/Board.jsx";
+import { DEFAULT_CONFIG, AI_LEVEL_OPTIONS, VICTORY_MODE_OPTIONS, AI_SPEED_OPTIONS } from "./config/gameConfig.js";
+import "./App.css";
+
+export default function App() {
+  const [gameStarted, setGameStarted] = useState(false);
+  const [config, setConfig] = useState(DEFAULT_CONFIG);
+
+  const handleStart = () => setGameStarted(true);
+  const handleReset = () => setGameStarted(false);
+
+  if (gameStarted) {
+    return <Board config={config} onReset={handleReset} />;
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div className="setup">
+      <div className="setup__card">
+        <h1 className="setup__title">CRAPETTE</h1>
+        <p className="setup__subtitle">Banca Rusa</p>
+
+        <div className="setup__options">
+
+          <div className="setup__group">
+            <label className="setup__label">Nivel de IA</label>
+            <div className="setup__radio-group">
+              {AI_LEVEL_OPTIONS.map(opt => (
+                <label key={opt.value} className={["setup__radio", config.aiLevel === opt.value && "setup__radio--active"].filter(Boolean).join(" ")}>
+                  <input
+                    type="radio"
+                    name="aiLevel"
+                    value={opt.value}
+                    checked={config.aiLevel === opt.value}
+                    onChange={() => setConfig(c => ({ ...c, aiLevel: opt.value }))}
+                  />
+                  <span className="setup__radio-label">{opt.label}</span>
+                  <span className="setup__radio-desc">{opt.description}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="setup__group">
+            <label className="setup__label">Victoria</label>
+            <div className="setup__radio-group">
+              {VICTORY_MODE_OPTIONS.map(opt => (
+                <label key={opt.value} className={["setup__radio", config.victoryMode === opt.value && "setup__radio--active"].filter(Boolean).join(" ")}>
+                  <input
+                    type="radio"
+                    name="victoryMode"
+                    value={opt.value}
+                    checked={config.victoryMode === opt.value}
+                    onChange={() => setConfig(c => ({ ...c, victoryMode: opt.value }))}
+                  />
+                  <span className="setup__radio-label">{opt.label}</span>
+                  <span className="setup__radio-desc">{opt.description}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="setup__group">
+            <label className="setup__label">Velocidad IA</label>
+            <select
+              className="setup__select"
+              value={config.aiSpeed}
+              onChange={e => setConfig(c => ({ ...c, aiSpeed: Number(e.target.value) }))}
+            >
+              {AI_SPEED_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="setup__group setup__group--row">
+            <label className="setup__label">Penalizacion por Stop falso</label>
+            <label className="setup__toggle">
+              <input
+                type="checkbox"
+                checked={config.penaltyEnabled}
+                onChange={e => setConfig(c => ({ ...c, penaltyEnabled: e.target.checked }))}
+              />
+              <span className="setup__toggle-slider" />
+            </label>
+          </div>
+
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
+
+        <button className="setup__btn" onClick={handleStart}>
+          Comenzar partida
         </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      </div>
+    </div>
+  );
 }
-
-export default App

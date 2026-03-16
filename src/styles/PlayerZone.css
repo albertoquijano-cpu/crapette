@@ -1,0 +1,121 @@
+/* PlayerZone.css - Estilo King Game */
+
+.player-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(201,168,76,0.2);
+  background: rgba(0,0,0,0.18);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.player-zone--active {
+  border-color: var(--gold);
+  box-shadow: 0 0 24px rgba(201,168,76,0.2);
+}
+
+.player-zone__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.player-zone__label {
+  font-size: 0.72em;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-family: 'Cinzel', serif;
+}
+
+.player-zone__turn-badge {
+  font-size: 0.65em;
+  color: var(--gold-light);
+  letter-spacing: 0.06em;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+.player-zone__body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.player-zone__pile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.player-zone__pile-label {
+  font-size: 0.58em;
+  color: var(--gold-dark);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  font-family: 'Cinzel', serif;
+}
+
+.player-zone__empty-pile {
+  width: 70px;
+  height: 100px;
+  border-radius: 7px;
+  border: 1.5px dashed rgba(201,168,76,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(201,168,76,0.25);
+  font-size: 1.4em;
+}
+
+.player-zone__rebuild {
+  width: 70px;
+  height: 100px;
+  border-radius: 7px;
+  border: 1.5px solid rgba(201,168,76,0.4);
+  background: rgba(201,168,76,0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gold);
+  font-size: 2em;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.player-zone__rebuild:hover {
+  background: rgba(201,168,76,0.16);
+}
+
+.player-zone__discard--locked {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.player-zone--ai {
+  transform: rotate(180deg);
+}
+
+.player-zone--ai .player-zone__header {
+  transform: rotate(180deg);
+}
+
+.player-zone--ai .player-zone__body {
+  transform: rotate(180deg);
+}
+
+@media (max-width: 480px) {
+  .player-zone { padding: 8px 10px; gap: 6px; }
+  .player-zone__body { gap: 6px; }
+  .player-zone__empty-pile { width: 52px; height: 75px; }
+  .player-zone__rebuild    { width: 52px; height: 75px; font-size: 1.5em; }
+}

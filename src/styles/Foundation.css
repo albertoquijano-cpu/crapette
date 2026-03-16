@@ -1,0 +1,67 @@
+/* Foundation.css - Estilo King Game */
+
+.foundations {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: rgba(0,0,0,0.25);
+  border-radius: 12px;
+  border: 1.5px solid var(--gold-dark);
+}
+
+.foundations__label {
+  font-size: 0.62em;
+  letter-spacing: 0.2em;
+  color: var(--gold);
+  font-family: 'Cinzel', serif;
+  text-transform: uppercase;
+}
+
+.foundations__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.foundations__pair {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: center;
+}
+
+.foundation__slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.foundation__empty {
+  width: 50px;
+  height: 70px;
+  border-radius: 6px;
+  border: 1.5px dashed rgba(201,168,76,0.3);
+  background: rgba(0,0,0,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5em;
+  opacity: 0.45;
+}
+
+.foundation__empty--red   { color: var(--card-red); }
+.foundation__empty--black { color: rgba(255,255,255,0.6); }
+
+.foundation__count {
+  font-size: 0.58em;
+  color: var(--gold-dark);
+  margin-top: 2px;
+}
+
+@media (max-width: 480px) {
+  .foundations__grid { gap: 4px; }
+  .foundation__empty { width: 38px; height: 54px; font-size: 1.1em; }
+}

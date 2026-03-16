@@ -1,0 +1,40 @@
+/* House.css - Estilo King Game */
+
+.houses {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.house__slot {
+  position: relative;
+  width: 70px;
+  min-height: 100px;
+}
+
+.house__empty {
+  width: 70px;
+  height: 100px;
+  border-radius: 7px;
+  border: 1.5px dashed rgba(201,168,76,0.25);
+  background: rgba(0,0,0,0.12);
+}
+
+.house__stack {
+  position: relative;
+  width: 70px;
+  min-height: 100px;
+}
+
+.house__card-wrapper {
+  position: absolute;
+  left: 0;
+  transition: top 0.18s ease;
+}
+
+@media (max-width: 480px) {
+  .houses { gap: 4px; }
+  .house__slot  { width: 52px; min-height: 75px; }
+  .house__empty { width: 52px; height: 75px; }
+  .house__stack { width: 52px; }
+}

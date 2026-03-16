@@ -1,0 +1,109 @@
+/* Card.css — Estilo King Game */
+
+.card {
+  position: relative;
+  width: 70px;
+  height: 100px;
+  border-radius: 7px;
+  border: 1.5px solid rgba(0,0,0,0.2);
+  background: var(--card-white);
+  box-shadow: 2px 3px 8px var(--card-shadow);
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 4px 5px;
+  font-family: 'Crimson Text', Georgia, serif;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 3px 8px 18px var(--card-shadow);
+}
+
+.card--selected {
+  outline: 2.5px solid var(--gold);
+  transform: translateY(-8px);
+  box-shadow: 0 10px 24px rgba(201,168,76,0.45);
+}
+
+.card--red  { color: var(--card-red); }
+.card--black { color: var(--card-black); }
+
+.card--small {
+  width: 50px;
+  height: 70px;
+  padding: 3px 4px;
+}
+
+.card__corner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1;
+}
+
+.card__corner--bottom {
+  align-items: flex-end;
+  transform: rotate(180deg);
+}
+
+.card__rank {
+  font-size: 1em;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.card__suit {
+  font-size: 0.75em;
+  line-height: 1;
+}
+
+.card__center {
+  font-size: 2em;
+  text-align: center;
+  line-height: 1;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.card--small .card__center { font-size: 1.3em; }
+.card--small .card__rank   { font-size: 0.85em; }
+
+.card--back {
+  background: linear-gradient(135deg, var(--felt-green-dark) 0%, var(--felt-green) 50%, var(--felt-green-dark) 100%);
+  border: 1.5px solid var(--gold-dark);
+}
+
+.card__back-pattern {
+  position: absolute;
+  inset: 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(201,168,76,0.3);
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(201,168,76,0.04) 0px,
+    rgba(201,168,76,0.04) 2px,
+    transparent 2px,
+    transparent 9px
+  );
+}
+
+.card--empty {
+  background: rgba(0,0,0,0.15);
+  border: 1.5px dashed rgba(201,168,76,0.25);
+  cursor: default;
+  box-shadow: none;
+}
+
+.card--empty:hover { transform: none; }
+
+@media (max-width: 480px) {
+  .card        { width: 52px; height: 75px; }
+  .card--small { width: 38px; height: 54px; }
+  .card__center { font-size: 1.5em; }
+}
