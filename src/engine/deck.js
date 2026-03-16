@@ -44,25 +44,20 @@ export function dealCards(deck) {
   // Retorna el estado inicial de las pilas de un jugador
   const shuffled = shuffleDeck(deck);
 
-  // Crapette: 13 cartas boca abajo, la superior boca arriba
+  // Crapette: 13 cartas boca abajo, la superior (indice 12) boca arriba
   const crapette = shuffled.slice(0, 13).map((c, i) => ({
     ...c,
     faceUp: i === 12,
   }));
 
-  // 4 casas de 4 cartas cada una, todas boca arriba
+  // 4 casas de 1 carta cada una, boca arriba
   const houses = [];
   for (let h = 0; h < 4; h++) {
-    houses.push(
-      shuffled.slice(13 + h * 4, 13 + h * 4 + 4).map((c) => ({
-        ...c,
-        faceUp: true,
-      }))
-    );
+    houses.push([{ ...shuffled[13 + h], faceUp: true }]);
   }
 
-  // Talon: cartas restantes (35) boca abajo
-  const talon = shuffled.slice(29).map((c) => ({ ...c, faceUp: false }));
+  // Talon: 35 cartas restantes, todas boca abajo
+  const talon = shuffled.slice(17).map((c) => ({ ...c, faceUp: false }));
 
   return { crapette, houses, talon, discard: [] };
 }

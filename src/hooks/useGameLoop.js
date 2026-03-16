@@ -31,6 +31,7 @@ export function useGameLoop(config) {
     if (source === "crapette") human.crapette = human.crapette.slice(0, -1);
     else if (source === "house") human.houses[houseIndex] = human.houses[houseIndex].slice(0, -1);
     else if (source === "discard") human.discard = human.discard.slice(0, -1);
+    else if (source === "flipped") human.flippedCard = null;
     foundations[foundationKey] = [...foundations[foundationKey], { ...card, faceUp: true }];
 
     const newState = { ...state, human, foundations };
@@ -51,6 +52,7 @@ export function useGameLoop(config) {
     if (source === "crapette") human.crapette = human.crapette.slice(0, -1);
     else if (source === "house") human.houses[sourceIndex] = human.houses[sourceIndex].slice(0, -1);
     else if (source === "discard") human.discard = human.discard.slice(0, -1);
+    else if (source === "flipped") human.flippedCard = null;
     human.houses[targetIndex] = [...human.houses[targetIndex], { ...card, faceUp: true }];
 
     recordAndUpdate({ ...state, human, statusMessage: "Carta movida a casa" }, { type: "house", card, source });
@@ -61,27 +63,42 @@ export function useGameLoop(config) {
     if (state.phase !== GAME_PHASES.HUMAN_TURN) return;
     let human = { ...state.human };
 
+    // Si ya hay carta volteada encima del talon, pasarla al descarte y terminar turno
+    if (human.flippedCard) {
+      human.discard = [...human.discard, human.flippedCard];
+      human.flippedCard = null;
+      recordAndUpdate(
+        { ...state, human, phase: GAME_PHASES.AI_TURN, currentPlayer: "ai", statusMessage: "Turno de la IA" },
+        { type: "discard", card: human.flippedCard }
+      );
+      return;
+    }
+
+    // Reconstruir talon si esta vacio
     if (human.talon.length === 0) {
       human = rebuildTalon(human);
       if (human.talon.length === 0) return;
     }
 
+    // Voltear carta — queda visible encima del talon
     const card = { ...human.talon[human.talon.length - 1], faceUp: true };
     human.talon = human.talon.slice(0, -1);
+    human.flippedCard = card;
 
-    const foundationKey = canPlayToFoundation(card, state.foundations);
-    if (foundationKey) {
-      const foundations = { ...state.foundations };
-      foundations[foundationKey] = [...foundations[foundationKey], card];
-      const newState = { ...state, human, foundations, statusMessage: "Carta del talon a fundacion" };
-      const winner = checkVictory(newState);
-      if (winner) { recordAndUpdate({ ...newState, phase: GAME_PHASES.GAME_OVER, winner }, { type: "foundation", card }); return; }
-      recordAndUpdate(newState, { type: "talon", card });
-      return;
-    }
+    recordAndUpdate(
+      { ...state, human, statusMessage: "Carta volteada — juegala o presiona Talon para descartar" },
+      { type: "flip", card }
+    );
+  }, [state, recordAndUpdate]);
 
-    // No juega — va al descarte, fin de turno
+  // ─── Descartar carta volteada del Talon ───────────────────────────────────
+  const discardFlipped = useCallback(() => {
+    if (state.phase !== GAME_PHASES.HUMAN_TURN) return;
+    const human = { ...state.human };
+    if (!human.flippedCard) return;
+    const card = human.flippedCard;
     human.discard = [...human.discard, card];
+    human.flippedCard = null;
     recordAndUpdate(
       { ...state, human, phase: GAME_PHASES.AI_TURN, currentPlayer: "ai", statusMessage: "Turno de la IA" },
       { type: "discard", card }
@@ -171,6 +188,7 @@ export function useGameLoop(config) {
     playToFoundation,
     playToHouse,
     flipTalon,
+    discardFlipped,
     runAITurn,
     declareStop,
     resetGame,

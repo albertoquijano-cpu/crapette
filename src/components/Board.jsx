@@ -1,6 +1,6 @@
-// Board.jsx - Layout correcto
+// Board.jsx - Con drag and drop completo
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Card } from "./Card.jsx";
 import { useGameLoop } from "../hooks/useGameLoop.js";
 import { useStopDetection } from "../hooks/useStopDetection.js";
@@ -15,82 +15,98 @@ const SUITS = ["spades", "hearts", "diamonds", "clubs"];
 export function Board({ config, onReset }) {
   const {
     state, lastMove,
-    playToFoundation, playToHouse, flipTalon,
+    playToFoundation, playToHouse, flipTalon, discardFlipped,
     runAITurn, declareStop, resetGame,
   } = useGameLoop(config);
 
-  const [selectedCard, setSelectedCard] = useState(null);
   const [aiSpeed, setAiSpeed] = useState(config.aiSpeed || 1000);
+  const dragRef = useRef(null);
 
   useAI(state.phase, aiSpeed, runAITurn);
   useStopDetection(state.phase, declareStop);
 
   const isHumanTurn = state.currentPlayer === "human";
 
-  const selectCard = useCallback((card, source, houseIndex = null) => {
-    if (!isHumanTurn) return;
-    if (selectedCard && selectedCard.card.id === card.id) {
-      setSelectedCard(null); return;
-    }
-    setSelectedCard({ card, source, houseIndex });
-  }, [selectedCard, isHumanTurn]);
+  // ─── Drag handlers ───────────────────────────────────────────────────────
 
-  const handleHouseClick = useCallback((card, source, houseIndex, owner) => {
-    if (owner !== "human") return;
-    if (selectedCard) {
-      playToHouse(selectedCard.card, selectedCard.source, selectedCard.houseIndex, houseIndex);
-      setSelectedCard(null);
-    } else {
-      const fKey = canPlayToFoundation(card, state.foundations);
-      if (fKey) { playToFoundation(card, source, houseIndex); return; }
-      selectCard(card, source, houseIndex);
-    }
-  }, [selectedCard, state.foundations, playToFoundation, playToHouse, selectCard]);
+  const handleDragStart = useCallback((e, card, source, houseIndex) => {
+    dragRef.current = { card, source, houseIndex };
+    e.dataTransfer.effectAllowed = "move";
+  }, []);
 
-  const handleFoundationClick = useCallback((foundationKey) => {
-    if (!selectedCard) return;
-    const fKey = canPlayToFoundation(selectedCard.card, state.foundations);
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const handleDropToFoundation = useCallback((e, foundationKey) => {
+    e.preventDefault();
+    if (!dragRef.current) return;
+    const { card, source, houseIndex } = dragRef.current;
+    const fKey = canPlayToFoundation(card, state.foundations);
     if (fKey === foundationKey) {
-      playToFoundation(selectedCard.card, selectedCard.source, selectedCard.houseIndex);
-      setSelectedCard(null);
+      playToFoundation(card, source, houseIndex);
     }
-  }, [selectedCard, state.foundations, playToFoundation]);
+    dragRef.current = null;
+  }, [state.foundations, playToFoundation]);
 
-  const handleCrapetteClick = useCallback(() => {
+  const handleDropToHouse = useCallback((e, targetIndex) => {
+    e.preventDefault();
+    if (!dragRef.current) return;
+    const { card, source, houseIndex } = dragRef.current;
+    playToHouse(card, source, houseIndex, targetIndex);
+    dragRef.current = null;
+  }, [playToHouse]);
+
+  const handleDropToDiscard = useCallback((e) => {
+    e.preventDefault();
+    if (!dragRef.current) return;
+    const { card } = dragRef.current;
+    if (card.id === state.human.flippedCard?.id) {
+      discardFlipped();
+    }
+    dragRef.current = null;
+  }, [state.human.flippedCard, discardFlipped]);
+
+  // Click en carta — jugar directo a fundacion si es posible
+  const handleCardClick = useCallback((card, source, houseIndex) => {
     if (!isHumanTurn) return;
-    const top = state.human.crapette[state.human.crapette.length - 1];
-    if (!top) return;
-    if (selectedCard) { setSelectedCard(null); return; }
-    const fKey = canPlayToFoundation(top, state.foundations);
-    if (fKey) { playToFoundation(top, "crapette", null); return; }
-    selectCard(top, "crapette", null);
-  }, [isHumanTurn, state, selectedCard, playToFoundation, selectCard]);
+    const fKey = canPlayToFoundation(card, state.foundations);
+    if (fKey) {
+      playToFoundation(card, source, houseIndex);
+    }
+  }, [isHumanTurn, state.foundations, playToFoundation]);
 
-  const handleDiscardClick = useCallback(() => {
-    if (!isHumanTurn || state.human.crapette.length > 0) return;
-    const top = state.human.discard[state.human.discard.length - 1];
-    if (!top) return;
-    if (selectedCard) { setSelectedCard(null); return; }
-    const fKey = canPlayToFoundation(top, state.foundations);
-    if (fKey) { playToFoundation(top, "discard", null); return; }
-    selectCard(top, "discard", null);
-  }, [isHumanTurn, state, selectedCard, playToFoundation, selectCard]);
+  // ─── Renders ─────────────────────────────────────────────────────────────
 
   const renderHouse = (pile, houseIndex, owner) => {
     const top = pile.length > 0 ? pile[pile.length - 1] : null;
-    const isSelected = selectedCard && top && selectedCard.card.id === top.id;
+    const isHumanOwner = owner === "human";
     return (
       <div key={houseIndex} className="house-slot"
-        onClick={() => top && handleHouseClick(top, "house", houseIndex, owner)}>
+        onDragOver={handleDragOver}
+        onDrop={(e) => handleDropToHouse(e, houseIndex)}>
         {pile.length === 0 ? (
           <div className="house-slot__empty" />
         ) : (
           <div className="house-slot__stack">
-            {pile.map((card, ci) => (
-              <div key={card.id} className="house-slot__card" style={{ top: ci * 20 + "px" }}>
-                <Card card={card} selected={isSelected && ci === pile.length - 1} />
-              </div>
-            ))}
+            {pile.map((card, ci) => {
+              const isTop = ci === pile.length - 1;
+              return (
+                <div key={card.id} className="house-slot__card" style={{ top: ci * 20 + "px" }}>
+                  <Card
+                    card={card}
+                    draggable={isTop && isHumanOwner}
+                    onDragStart={isTop && isHumanOwner
+                      ? (e) => handleDragStart(e, card, "house", houseIndex)
+                      : undefined}
+                    onClick={isTop && isHumanOwner
+                      ? () => handleCardClick(card, "house", houseIndex)
+                      : undefined}
+                  />
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -103,10 +119,11 @@ export function Board({ config, onReset }) {
     const top = pile.length > 0 ? pile[pile.length - 1] : null;
     return (
       <div key={key} className={"foundation-slot foundation-slot--" + SUIT_COLORS[suit]}
-        onClick={() => handleFoundationClick(key)}>
-        {top ? <Card card={top} small /> : (
-          <div className="foundation-slot__empty">{SUIT_SYMBOLS[suit]}</div>
-        )}
+        onDragOver={handleDragOver}
+        onDrop={(e) => handleDropToFoundation(e, key)}>
+        {top
+          ? <Card card={top} small />
+          : <div className="foundation-slot__empty">{SUIT_SYMBOLS[suit]}</div>}
         <span className="foundation-slot__count">{pile.length}</span>
       </div>
     );
@@ -121,32 +138,67 @@ export function Board({ config, onReset }) {
 
     return (
       <div className={"pile-zone pile-zone--" + owner}>
-        <div className="pile-zone__item">
-          <div className="pile-zone__label">Crapette ({ps.crapette.length})</div>
-          {crapetteTop
-            ? <Card card={isHuman ? crapetteTop : { ...crapetteTop, faceUp: false }}
-                selected={selectedCard?.source === "crapette" && isHuman}
-                onClick={isHuman ? handleCrapetteClick : undefined} />
-            : <div className="pile-zone__empty">✓</div>}
-        </div>
-        <div className="pile-zone__item">
-          <div className="pile-zone__label">Descarte ({ps.discard.length})</div>
-          {discardTop
-            ? <div className={!canDiscard && isHuman ? "pile-zone__locked" : ""}>
-                <Card card={discardTop}
-                  selected={selectedCard?.source === "discard" && isHuman}
-                  onClick={isHuman && canDiscard ? handleDiscardClick : undefined} />
-              </div>
-            : <div className="pile-zone__empty">—</div>}
-        </div>
+        {/* Talon */}
         <div className="pile-zone__item">
           <div className="pile-zone__label">Talon ({ps.talon.length})</div>
-          {ps.talon.length > 0
-            ? <Card card={{ faceUp: false, id: "talon_" + owner }}
-                onClick={isHuman ? flipTalon : undefined} />
-            : ps.discard.length > 0
-              ? <div className="pile-zone__rebuild" onClick={isHuman ? flipTalon : undefined}>↺</div>
-              : <div className="pile-zone__empty">—</div>}
+          {ps.flippedCard ? (
+            <div className="pile-zone__flipped">
+              <Card
+                card={ps.flippedCard}
+                draggable={isHuman}
+                onDragStart={isHuman ? (e) => handleDragStart(e, ps.flippedCard, "flipped", null) : undefined}
+                onClick={isHuman ? discardFlipped : undefined}
+              />
+              {isHuman && <div className="pile-zone__flipped-hint">Arrastra o click para descartar</div>}
+            </div>
+          ) : ps.talon.length > 0 ? (
+            <Card card={{ faceUp: false, id: "talon_" + owner }}
+              onClick={isHuman ? flipTalon : undefined} />
+          ) : ps.discard.length > 0 ? (
+            <div className="pile-zone__rebuild" onClick={isHuman ? flipTalon : undefined}>↺</div>
+          ) : (
+            <div className="pile-zone__empty">—</div>
+          )}
+        </div>
+
+        {/* Descarte */}
+        <div className="pile-zone__item"
+          onDragOver={isHuman ? handleDragOver : undefined}
+          onDrop={isHuman ? (e) => handleDropToDiscard(e) : undefined}>
+          <div className="pile-zone__label">Descarte ({ps.discard.length})</div>
+          {discardTop ? (
+            <div className={!canDiscard && isHuman ? "pile-zone__locked" : ""}>
+              <Card
+                card={discardTop}
+                draggable={isHuman && canDiscard}
+                onDragStart={isHuman && canDiscard
+                  ? (e) => handleDragStart(e, discardTop, "discard", null)
+                  : undefined}
+                onClick={isHuman && canDiscard
+                  ? () => handleCardClick(discardTop, "discard", null)
+                  : undefined}
+              />
+            </div>
+          ) : (
+            <div className="pile-zone__empty"
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDropToDiscard(e)}>—</div>
+          )}
+        </div>
+
+        {/* Crapette */}
+        <div className="pile-zone__item">
+          <div className="pile-zone__label">Crapette ({ps.crapette.length})</div>
+          {crapetteTop ? (
+            <Card
+              card={isHuman ? crapetteTop : { ...crapetteTop, faceUp: false }}
+              draggable={isHuman}
+              onDragStart={isHuman ? (e) => handleDragStart(e, crapetteTop, "crapette", null) : undefined}
+              onClick={isHuman ? () => handleCardClick(crapetteTop, "crapette", null) : undefined}
+            />
+          ) : (
+            <div className="pile-zone__empty">✓</div>
+          )}
         </div>
       </div>
     );
