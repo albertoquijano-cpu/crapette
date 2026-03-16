@@ -22,7 +22,7 @@ export function Foundation({ foundations }) {
         {suits.map(suit => (
           <div key={suit} className="foundations__pair">
             {["human", "ai"].map(owner => {
-              const key = \`\${suit}_\${owner}\`;
+              const key = suit + "_" + owner;
               const pile = foundations[key];
               const topCard = pile.length > 0 ? pile[pile.length - 1] : null;
               return (

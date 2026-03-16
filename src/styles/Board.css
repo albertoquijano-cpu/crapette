@@ -1,48 +1,295 @@
-/* Board.css - Estilo King Game */
+/* Board.css - Layout Banca Rusa */
 
 .board {
   display: flex;
   flex-direction: column;
-  gap: 12px;
   min-height: 100vh;
-  padding: 16px;
-  background:
-    radial-gradient(ellipse at center, var(--felt-green) 0%, var(--felt-green-dark) 70%, #1a1208 100%);
+  padding: 10px;
+  gap: 8px;
+  background: radial-gradient(ellipse at center, var(--felt-green) 0%, var(--felt-green-dark) 70%, #1a1208 100%);
   border: 3px solid var(--gold-dark);
   box-shadow: inset 0 0 60px rgba(0,0,0,0.4);
-}
-
-.board__center {
-  display: flex;
-  flex-direction: row;
-  gap: 12px;
-  align-items: flex-start;
-  justify-content: center;
-  flex-wrap: wrap;
 }
 
 .board__title {
   text-align: center;
   font-family: 'Cinzel', serif;
-  font-size: 1.1em;
-  letter-spacing: 0.25em;
+  font-size: 1em;
+  letter-spacing: 0.3em;
   color: var(--gold);
   text-shadow: 0 0 12px rgba(201,168,76,0.4);
   padding: 4px 0;
   border-bottom: 1px solid rgba(201,168,76,0.2);
+  border-top: 1px solid rgba(201,168,76,0.2);
 }
 
+/* Zona pilas (Crapette/Descarte/Talon) */
+.pile-zone {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  gap: 16px;
+  padding: 8px 12px;
+  background: rgba(0,0,0,0.2);
+  border-radius: 10px;
+  border: 1px solid rgba(201,168,76,0.15);
+}
+
+.pile-zone--ai { flex-direction: row-reverse; }
+
+.pile-zone__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.pile-zone__label {
+  font-family: 'Cinzel', serif;
+  font-size: 0.55em;
+  letter-spacing: 0.1em;
+  color: var(--gold-dark);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pile-zone__empty {
+  width: 70px;
+  height: 100px;
+  border-radius: 7px;
+  border: 1.5px dashed rgba(201,168,76,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(201,168,76,0.25);
+  font-size: 1.2em;
+}
+
+.pile-zone__rebuild {
+  width: 70px;
+  height: 100px;
+  border-radius: 7px;
+  border: 1.5px solid rgba(201,168,76,0.4);
+  background: rgba(201,168,76,0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gold);
+  font-size: 2em;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.pile-zone__rebuild:hover { background: rgba(201,168,76,0.16); }
+
+.pile-zone__locked {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* Centro: casas + fundaciones */
+.board__center {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+/* Casas */
+.board__houses {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.house-slot {
+  position: relative;
+  width: 70px;
+  min-height: 100px;
+  cursor: pointer;
+}
+
+.house-slot__empty {
+  width: 70px;
+  height: 100px;
+  border-radius: 7px;
+  border: 1.5px dashed rgba(201,168,76,0.2);
+  background: rgba(0,0,0,0.1);
+}
+
+.house-slot__stack {
+  position: relative;
+  width: 70px;
+  min-height: 100px;
+}
+
+.house-slot__card {
+  position: absolute;
+  left: 0;
+}
+
+/* Fundaciones */
+.board__foundations {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: rgba(0,0,0,0.2);
+  border-radius: 12px;
+  border: 1.5px solid var(--gold-dark);
+}
+
+.foundation-row {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  align-items: center;
+}
+
+.foundation-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.foundation-slot__empty {
+  width: 50px;
+  height: 70px;
+  border-radius: 6px;
+  border: 1.5px dashed rgba(201,168,76,0.25);
+  background: rgba(0,0,0,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4em;
+  opacity: 0.4;
+}
+
+.foundation-slot--red .foundation-slot__empty   { color: var(--card-red); }
+.foundation-slot--black .foundation-slot__empty { color: rgba(255,255,255,0.5); }
+
+.foundation-slot__count {
+  font-size: 0.55em;
+  color: var(--gold-dark);
+  font-family: 'Cinzel', serif;
+}
+
+/* Status bar */
+.board__status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 10px;
+  border: 1px solid var(--gold-dark);
+}
+
+.board__status-msg {
+  font-family: 'Crimson Text', serif;
+  font-size: 0.9em;
+  letter-spacing: 0.04em;
+}
+
+.board__status-msg--human { color: var(--gold-light); }
+.board__status-msg--ai    { color: #5dade2; }
+
+.board__stop-hint {
+  font-size: 0.68em;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+.board__stop-result {
+  font-size: 0.72em;
+  font-family: 'Cinzel', serif;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.board__stop-result--valid {
+  color: var(--stop-green);
+  background: rgba(46,204,113,0.1);
+  border: 1px solid rgba(46,204,113,0.3);
+}
+
+.board__stop-result--invalid {
+  color: var(--stop-red);
+  background: rgba(231,76,60,0.1);
+  border: 1px solid rgba(231,76,60,0.3);
+}
+
+.board__controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.board__ctrl-label {
+  font-family: 'Cinzel', serif;
+  font-size: 0.62em;
+  color: var(--gold-dark);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.board__ctrl-select {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--gold-dark);
+  color: var(--gold-light);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.78em;
+  cursor: pointer;
+  outline: none;
+  font-family: 'Crimson Text', serif;
+}
+
+.board__btn {
+  padding: 5px 14px;
+  border-radius: 7px;
+  border: 1px solid var(--gold-dark);
+  background: rgba(201,168,76,0.1);
+  color: var(--gold);
+  font-family: 'Cinzel', serif;
+  font-size: 0.72em;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.board__btn:hover { background: rgba(201,168,76,0.2); }
+
+.board__gameover {
+  font-family: 'Cinzel', serif;
+  font-size: 1.4em;
+  color: var(--gold-light);
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 16px rgba(201,168,76,0.5);
+}
+
+/* Responsive mobile */
 @media (max-width: 480px) {
-  .board { padding: 8px; gap: 8px; }
-  .board__center { gap: 8px; }
-  .board__title { font-size: 0.85em; letter-spacing: 0.15em; }
-}
-
-@media (min-width: 768px) {
-  .board {
-    max-width: 900px;
-    margin: 0 auto;
-    min-height: 100vh;
-    border-radius: 16px;
-  }
+  .board { padding: 6px; gap: 5px; }
+  .pile-zone { gap: 8px; padding: 6px; }
+  .pile-zone__empty { width: 52px; height: 75px; }
+  .pile-zone__rebuild { width: 52px; height: 75px; font-size: 1.5em; }
+  .house-slot { width: 52px; min-height: 75px; }
+  .house-slot__empty { width: 52px; height: 75px; }
+  .board__center { gap: 4px; }
+  .foundation-slot__empty { width: 38px; height: 54px; font-size: 1.1em; }
+  .foundation-row { gap: 4px; }
 }

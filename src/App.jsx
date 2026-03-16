@@ -19,8 +19,8 @@ export default function App() {
   return (
     <div className="setup">
       <div className="setup__card">
-        <h1 className="setup__title">CRAPETTE</h1>
-        <p className="setup__subtitle">Banca Rusa</p>
+        <h1 className="setup__title">BANCA RUSA</h1>
+        <p className="setup__subtitle">Crapette</p>
 
         <div className="setup__options">
 
