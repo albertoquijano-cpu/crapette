@@ -13,11 +13,14 @@ export function useGameLoop(config) {
   const aiTimerRef = useRef(null);
 
   // ─── Registrar jugada en historial ──────────────────────────────────────
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   const recordAndUpdate = useCallback((newState, move) => {
-    setHistory(h => recordMove(h, move, state));
+    setHistory(h => recordMove(h, move, stateRef.current));
     setLastMove(move);
     setState(newState);
-  }, [state]);
+  }, []);
 
   // ─── Jugada humana: mover carta a fundacion ──────────────────────────────
   const playToFoundation = useCallback((card, source, houseIndex) => {
@@ -34,7 +37,7 @@ export function useGameLoop(config) {
     else if (source === "flipped") human.flippedCard = null;
     foundations[foundationKey] = [...foundations[foundationKey], { ...card, faceUp: true }];
 
-    const newState = { ...state, human, foundations };
+    const newState = { ...state, human, ai, foundations };
     const winner = checkVictory(newState);
     if (winner) {
       recordAndUpdate({ ...newState, phase: GAME_PHASES.GAME_OVER, winner }, { type: "foundation", card, source });
@@ -102,10 +105,8 @@ export function useGameLoop(config) {
       discard: [...state.human.discard, { ...card, faceUp: true }],
       flippedCard: null,
     };
-    recordAndUpdate(
-      { ...state, human, phase: GAME_PHASES.AI_TURN, currentPlayer: "ai", statusMessage: "Turno de la IA" },
-      { type: "discard", card }
-    );
+    const newState = { ...state, human, phase: GAME_PHASES.AI_TURN, currentPlayer: "ai", statusMessage: "Turno de la IA" };
+    recordAndUpdate(newState, { type: "discard", card });
   }, [state, recordAndUpdate]);
 
   // ─── Turno de la IA ──────────────────────────────────────────────────────

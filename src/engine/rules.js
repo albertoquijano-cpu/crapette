@@ -4,7 +4,7 @@ import { getTopCard } from "./gameState.js";
 
 // Fundacion: As primero, luego orden ascendente mismo palo
 export function canPlayToFoundation(card, foundations) {
-  if (!card) return null;
+  if (!card || !foundations) return null;
   for (const [key, pile] of Object.entries(foundations)) {
     if (!key.startsWith(card.suit)) continue;
     const top = getTopCard(pile);
@@ -71,7 +71,7 @@ export function getPlayableCards(playerState, rivalState) {
   }
 
   // Cartas superiores de las casas del rival
-  if (rivalState) {
+  if (rivalState && rivalState.houses) {
     rivalState.houses.forEach((house, i) => {
       const top = getTopCard(house);
       if (top) cards.push({ card: top, source: "rival_house", houseIndex: i });
@@ -83,7 +83,7 @@ export function getPlayableCards(playerState, rivalState) {
 
 // Jugadas obligatorias a fundaciones
 export function getMandatoryFoundationMoves(playerState, rivalState, foundations) {
-  const playable = getPlayableCards(playerState, rivalState);
+  const playable = getPlayableCards(playerState, rivalState || null);
   const mandatory = [];
   for (const { card, source, houseIndex } of playable) {
     const foundationKey = canPlayToFoundation(card, foundations);

@@ -358,18 +358,20 @@
 }
 
 .pile-zone__rebuild-small {
-  font-size: 0.58em;
-  color: var(--gold-dark);
+  font-size: 0.72em;
+  color: var(--gold);
   font-family: 'Cinzel', serif;
   cursor: pointer;
   text-align: center;
-  padding: 2px 6px;
-  border: 1px solid var(--gold-dark);
-  border-radius: 4px;
-  margin-top: 4px;
+  padding: 5px 10px;
+  border: 1.5px solid var(--gold);
+  border-radius: 6px;
+  margin-top: 6px;
+  background: rgba(201,168,76,0.12);
+  letter-spacing: 0.08em;
+  animation: pulse 1.2s ease-in-out infinite;
 }
 
 .pile-zone__rebuild-small:hover {
-  color: var(--gold);
-  border-color: var(--gold);
+  background: rgba(201,168,76,0.25);
 }

@@ -6,11 +6,11 @@ import { GAME_PHASES } from "../engine/gameState.js";
 export function useAI(phase, aiSpeed, runAITurn) {
   const timerRef = useRef(null);
   const runAITurnRef = useRef(runAITurn);
+  const moveCountRef = useRef(0);
 
-  // Mantener referencia actualizada sin re-disparar el efecto
   useEffect(() => {
     runAITurnRef.current = runAITurn;
-  }, [runAITurn]);
+  });
 
   useEffect(() => {
     if (phase !== GAME_PHASES.AI_TURN) {
@@ -20,8 +20,7 @@ export function useAI(phase, aiSpeed, runAITurn) {
       }
       return;
     }
-    // Solo programar si no hay timer activo
-    if (timerRef.current) return;
+
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
       runAITurnRef.current();
@@ -33,5 +32,5 @@ export function useAI(phase, aiSpeed, runAITurn) {
         timerRef.current = null;
       }
     };
-  }, [phase, aiSpeed]);
+  });
 }

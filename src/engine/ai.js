@@ -3,13 +3,38 @@
 import { canPlayToFoundation, canPlayToHouse, canPlayToRivalDiscard, getPlayableCards, getMandatoryFoundationMoves } from "./rules.js";
 import { getTopCard } from "./gameState.js";
 
-// ─── Nivel Basico ─────────────────────────────────────────────────────────
-// Solo juega cartas evidentes que esten en superficie hacia fundaciones
-
-function getBasicMove(playerState, rivalState, foundations) {
+// Obtener todas las cartas jugables de la IA
+function getAIPlayable(playerState, rivalState) {
+  const cards = [];
   const canDiscard = playerState.crapette.length === 0;
-  const playable = getPlayableCards(playerState, canDiscard);
 
+  // Carta superior del crapette
+  const crapetteTop = getTopCard(playerState.crapette);
+  if (crapetteTop) cards.push({ card: crapetteTop, source: "crapette" });
+
+  // Carta volteada del talon
+  if (playerState.flippedCard) {
+    cards.push({ card: playerState.flippedCard, source: "flipped" });
+  }
+
+  // Cartas superiores de casas propias
+  playerState.houses.forEach((house, i) => {
+    const top = getTopCard(house);
+    if (top) cards.push({ card: top, source: "house", houseIndex: i });
+  });
+
+  // Carta superior del descarte (si crapette vacio)
+  if (canDiscard) {
+    const discardTop = getTopCard(playerState.discard);
+    if (discardTop) cards.push({ card: discardTop, source: "discard" });
+  }
+
+  return cards;
+}
+
+// ─── Nivel Basico ─────────────────────────────────────────────────────────
+function getBasicMove(playerState, rivalState, foundations) {
+  const playable = getAIPlayable(playerState, rivalState);
   for (const { card, source, houseIndex } of playable) {
     const foundationKey = canPlayToFoundation(card, foundations);
     if (foundationKey) return { card, source, houseIndex, type: "foundation", target: foundationKey };
@@ -18,19 +43,25 @@ function getBasicMove(playerState, rivalState, foundations) {
 }
 
 // ─── Nivel Experto ────────────────────────────────────────────────────────
-// Evalua todas las jugadas posibles y elige la optima
-
 function getExpertMove(playerState, rivalState, foundations) {
-  const canDiscard = playerState.crapette.length === 0;
-  const playable = getPlayableCards(playerState, canDiscard);
+  const playable = getAIPlayable(playerState, rivalState);
 
-  // Primero jugadas obligatorias a fundaciones
+  // 1. Jugadas obligatorias a fundaciones
   for (const { card, source, houseIndex } of playable) {
     const foundationKey = canPlayToFoundation(card, foundations);
     if (foundationKey) return { card, source, houseIndex, type: "foundation", target: foundationKey };
   }
 
-  // Luego mover de Crapette a casas si es posible
+  // 2. Mover flippedCard a casa
+  if (playerState.flippedCard) {
+    for (let i = 0; i < playerState.houses.length; i++) {
+      if (canPlayToHouse(playerState.flippedCard, playerState.houses[i])) {
+        return { card: playerState.flippedCard, source: "flipped", type: "house", target: i };
+      }
+    }
+  }
+
+  // 3. Mover crapette a casa
   const crapetteTop = getTopCard(playerState.crapette);
   if (crapetteTop) {
     for (let i = 0; i < playerState.houses.length; i++) {
@@ -40,7 +71,7 @@ function getExpertMove(playerState, rivalState, foundations) {
     }
   }
 
-  // Mover entre casas para descubrir cartas utiles
+  // 4. Mover entre casas
   for (let si = 0; si < playerState.houses.length; si++) {
     const card = getTopCard(playerState.houses[si]);
     if (!card) continue;
@@ -52,13 +83,19 @@ function getExpertMove(playerState, rivalState, foundations) {
     }
   }
 
-  // Jugar al descarte del rival
-  const canDiscardRival = playerState.crapette.length === 0;
-  if (canDiscardRival) {
+  // 5. Jugar al descarte del rival
+  if (playerState.crapette.length === 0 && rivalState) {
     const discardTop = getTopCard(playerState.discard);
-    if (discardTop) {
-      if (canPlayToRivalDiscard(discardTop, rivalState.discard)) {
-        return { card: discardTop, source: "discard", type: "rival_discard" };
+    if (discardTop && canPlayToRivalDiscard(discardTop, rivalState.discard)) {
+      return { card: discardTop, source: "discard", type: "rival_discard" };
+    }
+  }
+
+  // 6. Mover al crapette del rival
+  if (rivalState) {
+    for (const { card, source, houseIndex } of playable) {
+      if (canPlayToRivalDiscard(card, rivalState.crapette)) {
+        return { card, source, houseIndex, type: "rival_crapette" };
       }
     }
   }
@@ -100,10 +137,15 @@ export function applyAIMove(state, move) {
 
   // Quitar carta de la fuente
   const removeFromSource = () => {
-    if (move.source === "crapette") ai.crapette = ai.crapette.slice(0, -1);
-    else if (move.source === "house") ai.houses[move.houseIndex] = ai.houses[move.houseIndex].slice(0, -1);
-    else if (move.source === "discard") ai.discard = ai.discard.slice(0, -1);
-    else if (move.source === "flipped") ai.flippedCard = null;
+    if (move.source === "crapette") {
+      ai.crapette = ai.crapette.slice(0, -1);
+    } else if (move.source === "house") {
+      ai.houses[move.houseIndex] = ai.houses[move.houseIndex].slice(0, -1);
+    } else if (move.source === "discard") {
+      ai.discard = ai.discard.slice(0, -1);
+    } else if (move.source === "flipped") {
+      ai.flippedCard = null;
+    }
   };
 
   if (move.type === "foundation") {
@@ -115,16 +157,16 @@ export function applyAIMove(state, move) {
   } else if (move.type === "rival_discard") {
     removeFromSource();
     human.discard = [...human.discard, { ...move.card, faceUp: true }];
-  } else if (move.type === "human_house") {
+  } else if (move.type === "rival_crapette") {
     removeFromSource();
-    human.houses[move.target] = [...human.houses[move.target], { ...move.card, faceUp: true }];
+    human.crapette = [...human.crapette, { ...move.card, faceUp: true }];
   }
 
   // Descubrir nueva carta superior del crapette de la IA
   if (ai.crapette.length > 0) {
     ai.crapette = ai.crapette.map((c, i) => ({
       ...c,
-      faceUp: i === ai.crapette.length - 1
+      faceUp: i === ai.crapette.length - 1,
     }));
   }
 
