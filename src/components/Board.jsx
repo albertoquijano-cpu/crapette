@@ -41,10 +41,12 @@ export function Board({ config, onReset }) {
 
   const handleDropToFoundation = useCallback((e, foundationKey) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!dragRef.current) return;
     const { card, source, houseIndex } = dragRef.current;
+    // Intentar colocar en cualquier fundacion valida, no solo la exacta
     const fKey = canPlayToFoundation(card, state.foundations);
-    if (fKey === foundationKey) {
+    if (fKey) {
       playToFoundation(card, source, houseIndex);
     }
     dragRef.current = null;
@@ -67,6 +69,20 @@ export function Board({ config, onReset }) {
     }
     dragRef.current = null;
   }, [state.human.flippedCard, discardFlipped]);
+
+  const handleDropToRivalDiscard = useCallback((e) => {
+    e.preventDefault();
+    if (!dragRef.current) return;
+    const { card, source, houseIndex } = dragRef.current;
+    // Verificar que la carta puede ir al descarte rival (mismo palo, valor+1)
+    const rivalDiscardTop = state.ai.discard.length > 0
+      ? state.ai.discard[state.ai.discard.length - 1] : null;
+    if (!rivalDiscardTop) { dragRef.current = null; return; }
+    if (card.suit === rivalDiscardTop.suit && card.value === rivalDiscardTop.value + 1) {
+      playToHouse(card, source, houseIndex, "rival_discard");
+    }
+    dragRef.current = null;
+  }, [state.ai.discard, playToHouse]);
 
   // Click en carta — jugar directo a fundacion si es posible
   const handleCardClick = useCallback((card, source, houseIndex) => {
@@ -93,7 +109,7 @@ export function Board({ config, onReset }) {
             {pile.map((card, ci) => {
               const isTop = ci === pile.length - 1;
               return (
-                <div key={card.id} className="house-slot__card" style={{ top: ci * 20 + "px" }}>
+                <div key={card.id} className="house-slot__card" style={{ position: "absolute", left: ci * 18 + "px", top: 0 }}>
                   <Card
                     card={card}
                     draggable={isTop && isHumanOwner}
@@ -118,12 +134,19 @@ export function Board({ config, onReset }) {
     const pile = state.foundations[key];
     const top = pile.length > 0 ? pile[pile.length - 1] : null;
     return (
-      <div key={key} className={"foundation-slot foundation-slot--" + SUIT_COLORS[suit]}
-        onDragOver={handleDragOver}
-        onDrop={(e) => handleDropToFoundation(e, key)}>
+      <div key={key}
+        className={"foundation-slot foundation-slot--" + SUIT_COLORS[suit]}
+        onDragEnter={(e) => e.preventDefault()}
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "move"; }}
+        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDropToFoundation(e, key); }}>
         {top
           ? <Card card={top} small />
-          : <div className="foundation-slot__empty">{SUIT_SYMBOLS[suit]}</div>}
+          : <div className="foundation-slot__empty"
+              onDragEnter={(e) => e.preventDefault()}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDropToFoundation(e, key); }}>
+              {SUIT_SYMBOLS[suit]}
+            </div>}
         <span className="foundation-slot__count">{pile.length}</span>
       </div>
     );
@@ -163,8 +186,10 @@ export function Board({ config, onReset }) {
 
         {/* Descarte */}
         <div className="pile-zone__item"
-          onDragOver={isHuman ? handleDragOver : undefined}
-          onDrop={isHuman ? (e) => handleDropToDiscard(e) : undefined}>
+          onDragOver={handleDragOver}
+          onDrop={isHuman
+            ? (e) => handleDropToDiscard(e)
+            : (e) => handleDropToRivalDiscard(e)}>
           <div className="pile-zone__label">Descarte ({ps.discard.length})</div>
           {discardTop ? (
             <div className={!canDiscard && isHuman ? "pile-zone__locked" : ""}>
@@ -191,7 +216,7 @@ export function Board({ config, onReset }) {
           <div className="pile-zone__label">Crapette ({ps.crapette.length})</div>
           {crapetteTop ? (
             <Card
-              card={isHuman ? crapetteTop : { ...crapetteTop, faceUp: false }}
+              card={crapetteTop}
               draggable={isHuman}
               onDragStart={isHuman ? (e) => handleDragStart(e, crapetteTop, "crapette", null) : undefined}
               onClick={isHuman ? () => handleCardClick(crapetteTop, "crapette", null) : undefined}

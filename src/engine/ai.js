@@ -92,24 +92,41 @@ export function getAIMove(playerState, rivalState, foundations, level) {
 // ─── Aplicar movimiento de la IA al estado ────────────────────────────────
 
 export function applyAIMove(state, move) {
-  if (!move) return null; // Sin jugadas, termina turno
+  if (!move) return null;
 
-  const ai = { ...state.ai };
+  const ai = { ...state.ai, houses: state.ai.houses.map(h => [...h]) };
+  const human = { ...state.human, houses: state.human.houses.map(h => [...h]) };
   const foundations = { ...state.foundations };
 
-  if (move.type === "foundation") {
+  // Quitar carta de la fuente
+  const removeFromSource = () => {
     if (move.source === "crapette") ai.crapette = ai.crapette.slice(0, -1);
     else if (move.source === "house") ai.houses[move.houseIndex] = ai.houses[move.houseIndex].slice(0, -1);
     else if (move.source === "discard") ai.discard = ai.discard.slice(0, -1);
+    else if (move.source === "flipped") ai.flippedCard = null;
+  };
+
+  if (move.type === "foundation") {
+    removeFromSource();
     foundations[move.target] = [...foundations[move.target], { ...move.card, faceUp: true }];
   } else if (move.type === "house") {
-    if (move.source === "crapette") ai.crapette = ai.crapette.slice(0, -1);
-    else if (move.source === "house") ai.houses[move.houseIndex] = ai.houses[move.houseIndex].slice(0, -1);
-    else if (move.source === "discard") ai.discard = ai.discard.slice(0, -1);
+    removeFromSource();
     ai.houses[move.target] = [...ai.houses[move.target], { ...move.card, faceUp: true }];
   } else if (move.type === "rival_discard") {
-    ai.discard = ai.discard.slice(0, -1);
+    removeFromSource();
+    human.discard = [...human.discard, { ...move.card, faceUp: true }];
+  } else if (move.type === "human_house") {
+    removeFromSource();
+    human.houses[move.target] = [...human.houses[move.target], { ...move.card, faceUp: true }];
   }
 
-  return { ...state, ai, foundations };
+  // Descubrir nueva carta superior del crapette de la IA
+  if (ai.crapette.length > 0) {
+    ai.crapette = ai.crapette.map((c, i) => ({
+      ...c,
+      faceUp: i === ai.crapette.length - 1
+    }));
+  }
+
+  return { ...state, ai, human, foundations };
 }

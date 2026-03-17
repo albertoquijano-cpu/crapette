@@ -107,3 +107,10 @@
   .card--small { width: 38px; height: 54px; }
   .card__center { font-size: 1.5em; }
 }
+
+/* Fix drag recorte */
+.card { overflow: visible !important; }
+
+/* No bloquear drag events en carta destino */
+.card { pointer-events: auto; }
+.card * { pointer-events: none; }

@@ -105,14 +105,16 @@
 .board__houses {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  align-items: flex-start;
 }
 
 .house-slot {
   position: relative;
-  width: 70px;
-  min-height: 100px;
+  width: 100px;
+  height: 100px;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .house-slot__empty {
@@ -125,8 +127,9 @@
 
 .house-slot__stack {
   position: relative;
-  width: 70px;
-  min-height: 100px;
+  width: 100px;
+  height: 100px;
+  overflow: visible;
 }
 
 .house-slot__card {
