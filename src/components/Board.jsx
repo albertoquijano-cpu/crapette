@@ -80,21 +80,22 @@ export function Board({ config, onReset }) {
   // Renders
   const handleCardClick = (card, source, houseIndex) => {
     if (!isHumanTurn) return;
-    if (selected) {
-      if (source === "house") {
-        playToHouse(selected.card, selected.source, selected.houseIndex, houseIndex, "human");
-        setSelected(null);
-        return;
-      }
-      if (source === "rival_house") {
-        // Carta de casa IA seleccionada como destino — no permitido
-        // Solo se puede seleccionar carta de casa IA para llevarla a fundacion
-        setSelected({ card, source, houseIndex });
-        return;
-      }
-      setSelected({ card, source, houseIndex });
+
+    // Si la carta ya esta seleccionada — deseleccionar
+    if (selected && selected.card.id === card.id) {
+      setSelected(null);
       return;
     }
+
+    // Si hay carta seleccionada y click en casa destino — mover
+    if (selected && (source === "house" || source === "rival_house")) {
+      // Las casas son neutrales — cualquiera puede poner cartas ahi
+      playToHouse(selected.card, selected.source, selected.houseIndex, houseIndex);
+      setSelected(null);
+      return;
+    }
+
+    // Seleccionar esta carta
     setSelected({ card, source, houseIndex });
   };
 
