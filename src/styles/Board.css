@@ -345,3 +345,31 @@
 .house-slot__stack {
   overflow: visible;
 }
+
+.foundation-slot--active {
+  outline: 2px solid var(--gold);
+  border-radius: 6px;
+  box-shadow: 0 0 12px rgba(201,168,76,0.5);
+}
+
+.house-slot__empty--active {
+  border-color: rgba(201,168,76,0.6) !important;
+  background: rgba(201,168,76,0.1) !important;
+}
+
+.pile-zone__rebuild-small {
+  font-size: 0.58em;
+  color: var(--gold-dark);
+  font-family: 'Cinzel', serif;
+  cursor: pointer;
+  text-align: center;
+  padding: 2px 6px;
+  border: 1px solid var(--gold-dark);
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+.pile-zone__rebuild-small:hover {
+  color: var(--gold);
+  border-color: var(--gold);
+}

@@ -62,6 +62,7 @@ export function createInitialState(config = {}) {
       houses: humanDealt.houses,
       talon: humanDealt.talon,
       discard: [],
+      flippedCard: null,
     },
 
     // Estado de la IA
@@ -70,6 +71,7 @@ export function createInitialState(config = {}) {
       houses: aiDealt.houses,
       talon: aiDealt.talon,
       discard: [],
+      flippedCard: null,
     },
 
     // Control de turno

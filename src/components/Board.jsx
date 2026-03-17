@@ -1,6 +1,6 @@
-// Board.jsx - Con drag and drop completo
+// Board.jsx - Sistema click-to-select universal (Safari + Mobile compatible)
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { Card } from "./Card.jsx";
 import { useGameLoop } from "../hooks/useGameLoop.js";
 import { useStopDetection } from "../hooks/useStopDetection.js";
@@ -20,105 +20,106 @@ export function Board({ config, onReset }) {
   } = useGameLoop(config);
 
   const [aiSpeed, setAiSpeed] = useState(config.aiSpeed || 1000);
-  const dragRef = useRef(null);
+  const [selected, setSelected] = useState(null); // { card, source, houseIndex }
 
   useAI(state.phase, aiSpeed, runAITurn);
   useStopDetection(state.phase, declareStop);
 
   const isHumanTurn = state.currentPlayer === "human";
 
-  // ─── Drag handlers ───────────────────────────────────────────────────────
-
-  const handleDragStart = useCallback((e, card, source, houseIndex) => {
-    dragRef.current = { card, source, houseIndex };
-    e.dataTransfer.effectAllowed = "move";
-  }, []);
-
-  const handleDragOver = useCallback((e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  }, []);
-
-  const handleDropToFoundation = useCallback((e, foundationKey) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!dragRef.current) return;
-    const { card, source, houseIndex } = dragRef.current;
-    // Intentar colocar en cualquier fundacion valida, no solo la exacta
-    const fKey = canPlayToFoundation(card, state.foundations);
-    if (fKey) {
-      playToFoundation(card, source, houseIndex);
-    }
-    dragRef.current = null;
-  }, [state.foundations, playToFoundation]);
-
-  const handleDropToHouse = useCallback((e, targetIndex) => {
-    e.preventDefault();
-    if (!dragRef.current) return;
-    const { card, source, houseIndex } = dragRef.current;
-    playToHouse(card, source, houseIndex, targetIndex);
-    dragRef.current = null;
-  }, [playToHouse]);
-
-  const handleDropToDiscard = useCallback((e) => {
-    e.preventDefault();
-    if (!dragRef.current) return;
-    const { card } = dragRef.current;
-    if (card.id === state.human.flippedCard?.id) {
-      discardFlipped();
-    }
-    dragRef.current = null;
-  }, [state.human.flippedCard, discardFlipped]);
-
-  const handleDropToRivalDiscard = useCallback((e) => {
-    e.preventDefault();
-    if (!dragRef.current) return;
-    const { card, source, houseIndex } = dragRef.current;
-    // Verificar que la carta puede ir al descarte rival (mismo palo, valor+1)
-    const rivalDiscardTop = state.ai.discard.length > 0
-      ? state.ai.discard[state.ai.discard.length - 1] : null;
-    if (!rivalDiscardTop) { dragRef.current = null; return; }
-    if (card.suit === rivalDiscardTop.suit && card.value === rivalDiscardTop.value + 1) {
-      playToHouse(card, source, houseIndex, "rival_discard");
-    }
-    dragRef.current = null;
-  }, [state.ai.discard, playToHouse]);
-
-  // Click en carta — jugar directo a fundacion si es posible
-  const handleCardClick = useCallback((card, source, houseIndex) => {
+  // Seleccionar carta
+  const selectCard = useCallback((card, source, houseIndex) => {
     if (!isHumanTurn) return;
-    const fKey = canPlayToFoundation(card, state.foundations);
-    if (fKey) {
-      playToFoundation(card, source, houseIndex);
+    // Si ya hay seleccionada, deseleccionar
+    if (selected && selected.card.id === card.id) {
+      setSelected(null);
+      return;
     }
-  }, [isHumanTurn, state.foundations, playToFoundation]);
+    setSelected({ card, source, houseIndex });
+  }, [isHumanTurn, selected]);
 
-  // ─── Renders ─────────────────────────────────────────────────────────────
+
+
+
+
+  // Click en casa vacia
+  const handleEmptyHouseClick = useCallback((houseIndex, owner) => {
+    if (!selected) return;
+    if (owner === "ai") return; // No se puede dejar carta en casa vacia de la IA
+    playToHouse(selected.card, selected.source, selected.houseIndex, houseIndex);
+    setSelected(null);
+  }, [selected, playToHouse]);
+
+  // Click en Crapette
+  const handleCrapetteClick = useCallback(() => {
+    if (!isHumanTurn) return;
+    const top = state.human.crapette[state.human.crapette.length - 1];
+    if (!top) return;
+    if (selected) { setSelected(null); return; }
+    selectCard(top, "crapette", null);
+  }, [isHumanTurn, state.human.crapette, selected, selectCard]);
+
+  // Click en Descarte propio
+  const handleDiscardClick = useCallback(() => {
+    if (!isHumanTurn || state.human.crapette.length > 0) return;
+    const top = state.human.discard[state.human.discard.length - 1];
+    if (!top) return;
+    if (selected) { setSelected(null); return; }
+    selectCard(top, "discard", null);
+  }, [isHumanTurn, state.human, selected, selectCard]);
+
+  // Click en carta volteada del talon
+  const handleFlippedClick = useCallback(() => {
+    if (!isHumanTurn) return;
+    const card = state.human.flippedCard;
+    if (!card) return;
+    if (selected) { setSelected(null); return; }
+    selectCard(card, "flipped", null);
+  }, [isHumanTurn, state.human.flippedCard, selected, selectCard]);
+
+  // Renders
+  const handleCardClick = (card, source, houseIndex) => {
+    if (!isHumanTurn) return;
+    if (selected) {
+      if (source === "house") {
+        playToHouse(selected.card, selected.source, selected.houseIndex, houseIndex, "human");
+        setSelected(null);
+        return;
+      }
+      if (source === "rival_house") {
+        // Carta de casa IA seleccionada como destino — no permitido
+        // Solo se puede seleccionar carta de casa IA para llevarla a fundacion
+        setSelected({ card, source, houseIndex });
+        return;
+      }
+      setSelected({ card, source, houseIndex });
+      return;
+    }
+    setSelected({ card, source, houseIndex });
+  };
 
   const renderHouse = (pile, houseIndex, owner) => {
     const top = pile.length > 0 ? pile[pile.length - 1] : null;
     const isHumanOwner = owner === "human";
+    const isTopSelected = selected && top && selected.card.id === top.id;
+
     return (
-      <div key={houseIndex} className="house-slot"
-        onDragOver={handleDragOver}
-        onDrop={(e) => handleDropToHouse(e, houseIndex)}>
+      <div key={owner + houseIndex} className="house-slot"
+        onClick={!top && isHumanOwner ? () => handleEmptyHouseClick(houseIndex) : undefined}>
         {pile.length === 0 ? (
-          <div className="house-slot__empty" />
+          <div className={"house-slot__empty" + (selected ? " house-slot__empty--active" : "")}
+            onClick={() => selected && handleEmptyHouseClick(houseIndex, owner)} />
         ) : (
           <div className="house-slot__stack">
             {pile.map((card, ci) => {
               const isTop = ci === pile.length - 1;
               return (
-                <div key={card.id} className="house-slot__card" style={{ position: "absolute", left: ci * 18 + "px", top: 0 }}>
+                <div key={card.id} className="house-slot__card"
+                  style={{ left: ci * 18 + "px" }}>
                   <Card
                     card={card}
-                    draggable={isTop && isHumanOwner}
-                    onDragStart={isTop && isHumanOwner
-                      ? (e) => handleDragStart(e, card, "house", houseIndex)
-                      : undefined}
-                    onClick={isTop && isHumanOwner
-                      ? () => handleCardClick(card, "house", houseIndex)
-                      : undefined}
+                    selected={isTopSelected && isTop}
+                    onClick={isTop ? () => handleCardClick(card, isHumanOwner ? "house" : "rival_house", houseIndex) : undefined}
                   />
                 </div>
               );
@@ -133,20 +134,21 @@ export function Board({ config, onReset }) {
     const key = suit + "_" + owner;
     const pile = state.foundations[key];
     const top = pile.length > 0 ? pile[pile.length - 1] : null;
+    const isActive = selected && canPlayToFoundation(selected.card, state.foundations) === key;
     return (
       <div key={key}
-        className={"foundation-slot foundation-slot--" + SUIT_COLORS[suit]}
-        onDragEnter={(e) => e.preventDefault()}
-        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "move"; }}
-        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDropToFoundation(e, key); }}>
+        className={"foundation-slot foundation-slot--" + SUIT_COLORS[suit] + (isActive ? " foundation-slot--active" : "")}
+        onClick={() => {
+          if (!selected) return;
+          const fKey = canPlayToFoundation(selected.card, state.foundations);
+          if (fKey) {
+            playToFoundation(selected.card, selected.source, selected.houseIndex);
+            setSelected(null);
+          }
+        }}>
         {top
           ? <Card card={top} small />
-          : <div className="foundation-slot__empty"
-              onDragEnter={(e) => e.preventDefault()}
-              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDropToFoundation(e, key); }}>
-              {SUIT_SYMBOLS[suit]}
-            </div>}
+          : <div className="foundation-slot__empty">{SUIT_SYMBOLS[suit]}</div>}
         <span className="foundation-slot__count">{pile.length}</span>
       </div>
     );
@@ -166,48 +168,44 @@ export function Board({ config, onReset }) {
           <div className="pile-zone__label">Talon ({ps.talon.length})</div>
           {ps.flippedCard ? (
             <div className="pile-zone__flipped">
-              <Card
-                card={ps.flippedCard}
-                draggable={isHuman}
-                onDragStart={isHuman ? (e) => handleDragStart(e, ps.flippedCard, "flipped", null) : undefined}
-                onClick={isHuman ? discardFlipped : undefined}
-              />
-              {isHuman && <div className="pile-zone__flipped-hint">Arrastra o click para descartar</div>}
+              <Card card={ps.flippedCard}
+                selected={selected?.source === "flipped"}
+                onClick={isHuman ? handleFlippedClick : undefined} />
+              {isHuman && <div className="pile-zone__flipped-hint">Jugar o click Talon↺</div>}
             </div>
           ) : ps.talon.length > 0 ? (
             <Card card={{ faceUp: false, id: "talon_" + owner }}
               onClick={isHuman ? flipTalon : undefined} />
           ) : ps.discard.length > 0 ? (
-            <div className="pile-zone__rebuild" onClick={isHuman ? flipTalon : undefined}>↺</div>
+            <div className="pile-zone__rebuild"
+              onClick={isHuman ? flipTalon : undefined}>↺</div>
           ) : (
             <div className="pile-zone__empty">—</div>
+          )}
+          {ps.flippedCard && isHuman && (
+            <div className="pile-zone__rebuild-small"
+              onClick={discardFlipped}>↺ descartar</div>
           )}
         </div>
 
         {/* Descarte */}
         <div className="pile-zone__item"
-          onDragOver={handleDragOver}
-          onDrop={isHuman
-            ? (e) => handleDropToDiscard(e)
-            : (e) => handleDropToRivalDiscard(e)}>
+          onClick={!isHuman && selected ? () => {
+            const top = ps.discard[ps.discard.length - 1];
+            if (top && selected.card.suit === top.suit && selected.card.value === top.value + 1) {
+              playToHouse(selected.card, selected.source, selected.houseIndex, "rival_discard");
+              setSelected(null);
+            }
+          } : undefined}>
           <div className="pile-zone__label">Descarte ({ps.discard.length})</div>
           {discardTop ? (
             <div className={!canDiscard && isHuman ? "pile-zone__locked" : ""}>
-              <Card
-                card={discardTop}
-                draggable={isHuman && canDiscard}
-                onDragStart={isHuman && canDiscard
-                  ? (e) => handleDragStart(e, discardTop, "discard", null)
-                  : undefined}
-                onClick={isHuman && canDiscard
-                  ? () => handleCardClick(discardTop, "discard", null)
-                  : undefined}
-              />
+              <Card card={discardTop}
+                selected={selected?.source === "discard" && isHuman}
+                onClick={isHuman && canDiscard ? handleDiscardClick : undefined} />
             </div>
           ) : (
-            <div className="pile-zone__empty"
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDropToDiscard(e)}>—</div>
+            <div className="pile-zone__empty">—</div>
           )}
         </div>
 
@@ -215,12 +213,9 @@ export function Board({ config, onReset }) {
         <div className="pile-zone__item">
           <div className="pile-zone__label">Crapette ({ps.crapette.length})</div>
           {crapetteTop ? (
-            <Card
-              card={crapetteTop}
-              draggable={isHuman}
-              onDragStart={isHuman ? (e) => handleDragStart(e, crapetteTop, "crapette", null) : undefined}
-              onClick={isHuman ? () => handleCardClick(crapetteTop, "crapette", null) : undefined}
-            />
+            <Card card={crapetteTop}
+              selected={selected?.source === "crapette" && isHuman}
+              onClick={isHuman ? handleCrapetteClick : undefined} />
           ) : (
             <div className="pile-zone__empty">✓</div>
           )}
@@ -232,15 +227,11 @@ export function Board({ config, onReset }) {
   return (
     <div className="board">
       <div className="board__title">BANCA RUSA</div>
-
       {renderPileZone("ai")}
-
       <div className="board__center">
         <div className="board__houses board__houses--left">
-          {state.ai.houses.slice(0, 2).map((pile, i) => renderHouse(pile, i, "ai"))}
-          {state.human.houses.slice(0, 2).map((pile, i) => renderHouse(pile, i, "human"))}
+          {state.ai.houses.map((pile, i) => renderHouse(pile, i, "ai"))}
         </div>
-
         <div className="board__foundations">
           {SUITS.map(suit => (
             <div key={suit} className="foundation-row">
@@ -249,15 +240,11 @@ export function Board({ config, onReset }) {
             </div>
           ))}
         </div>
-
         <div className="board__houses board__houses--right">
-          {state.ai.houses.slice(2, 4).map((pile, i) => renderHouse(pile, i + 2, "ai"))}
-          {state.human.houses.slice(2, 4).map((pile, i) => renderHouse(pile, i + 2, "human"))}
+          {state.human.houses.map((pile, i) => renderHouse(pile, i, "human"))}
         </div>
       </div>
-
       {renderPileZone("human")}
-
       <div className="board__status">
         <span className={"board__status-msg board__status-msg--" + state.currentPlayer}>
           {state.statusMessage}

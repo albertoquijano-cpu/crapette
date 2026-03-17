@@ -65,11 +65,12 @@ export function useGameLoop(config) {
 
     // Si ya hay carta volteada encima del talon, pasarla al descarte y terminar turno
     if (human.flippedCard) {
-      human.discard = [...human.discard, human.flippedCard];
+      const flipped = human.flippedCard;
+      human.discard = [...human.discard, flipped];
       human.flippedCard = null;
       recordAndUpdate(
         { ...state, human, phase: GAME_PHASES.AI_TURN, currentPlayer: "ai", statusMessage: "Turno de la IA" },
-        { type: "discard", card: human.flippedCard }
+        { type: "discard", card: flipped }
       );
       return;
     }
@@ -94,11 +95,13 @@ export function useGameLoop(config) {
   // ─── Descartar carta volteada del Talon ───────────────────────────────────
   const discardFlipped = useCallback(() => {
     if (state.phase !== GAME_PHASES.HUMAN_TURN) return;
-    const human = { ...state.human };
-    if (!human.flippedCard) return;
-    const card = human.flippedCard;
-    human.discard = [...human.discard, card];
-    human.flippedCard = null;
+    if (!state.human.flippedCard) return;
+    const card = state.human.flippedCard;
+    const human = {
+      ...state.human,
+      discard: [...state.human.discard, { ...card, faceUp: true }],
+      flippedCard: null,
+    };
     recordAndUpdate(
       { ...state, human, phase: GAME_PHASES.AI_TURN, currentPlayer: "ai", statusMessage: "Turno de la IA" },
       { type: "discard", card }
