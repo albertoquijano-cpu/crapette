@@ -1,8 +1,8 @@
-// useGameLoop.js — Ciclo principal del juego
+// useGameLoop.js - Motor principal del juego
 
 import { useState, useCallback, useRef } from "react";
 import { createInitialState, checkVictory, GAME_PHASES } from "../engine/gameState.js";
-import { canPlayToFoundation, canPlayToHouse, canPlayToRivalDiscard, evaluateStop, applyStopPenalty, rebuildTalon, isTurnOver } from "../engine/rules.js";
+import { canPlayToFoundation, canPlayToHouse, rebuildTalon } from "../engine/rules.js";
 import { getAIMove, applyAIMove } from "../engine/ai.js";
 import { createHistory, recordMove } from "../engine/moveHistory.js";
 
@@ -10,176 +10,215 @@ export function useGameLoop(config) {
   const [state, setState] = useState(() => createInitialState(config));
   const [history, setHistory] = useState(createHistory());
   const [lastMove, setLastMove] = useState(null);
-  const aiTimerRef = useRef(null);
-
-  // ─── Registrar jugada en historial ──────────────────────────────────────
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const recordAndUpdate = useCallback((newState, move) => {
+  const update = useCallback((newState, move) => {
     setHistory(h => recordMove(h, move, stateRef.current));
     setLastMove(move);
     setState(newState);
   }, []);
 
-  // ─── Jugada humana: mover carta a fundacion ──────────────────────────────
-  const playToFoundation = useCallback((card, source, houseIndex) => {
-    if (state.phase !== GAME_PHASES.HUMAN_TURN) return;
-    const foundationKey = canPlayToFoundation(card, state.foundations);
-    if (!foundationKey) return;
+  // Clonar estado para mutacion segura
+  const cloneState = (s) => ({
+    ...s,
+    foundations: { ...s.foundations },
+    human: {
+      ...s.human,
+      crapette: [...s.human.crapette],
+      houses: s.human.houses.map(h => [...h]),
+      discard: [...s.human.discard],
+    },
+    ai: {
+      ...s.ai,
+      crapette: [...s.ai.crapette],
+      houses: s.ai.houses.map(h => [...h]),
+      discard: [...s.ai.discard],
+    },
+  });
 
-    const human = { ...state.human };
-    const foundations = { ...state.foundations };
+  // Descubrir carta superior del crapette
+  const revealCrapette = (crapette) => {
+    if (crapette.length === 0) return crapette;
+    const arr = [...crapette];
+    arr[arr.length - 1] = { ...arr[arr.length - 1], faceUp: true };
+    return arr;
+  };
 
-    if (source === "crapette") human.crapette = human.crapette.slice(0, -1);
-    else if (source === "house") human.houses[houseIndex] = human.houses[houseIndex].slice(0, -1);
-    else if (source === "discard") human.discard = human.discard.slice(0, -1);
-    else if (source === "flipped") human.flippedCard = null;
-    foundations[foundationKey] = [...foundations[foundationKey], { ...card, faceUp: true }];
-
-    const newState = { ...state, human, ai, foundations };
-    const winner = checkVictory(newState);
-    if (winner) {
-      recordAndUpdate({ ...newState, phase: GAME_PHASES.GAME_OVER, winner }, { type: "foundation", card, source });
-      return;
+  // Quitar carta de su origen
+  // Convencion indices: 0-3 = human.houses, 4-7 = ai.houses
+  const removeFromSource = (ns, source, houseIndex) => {
+    if (source === "crapette") {
+      ns.human.crapette.pop();
+      ns.human.crapette = revealCrapette(ns.human.crapette);
+    } else if (source === "house") {
+      if (houseIndex >= 4) {
+        ns.ai.houses[houseIndex - 4].pop();
+      } else {
+        ns.human.houses[houseIndex].pop();
+      }
+    } else if (source === "discard") {
+      ns.human.discard.pop();
+    } else if (source === "flipped") {
+      ns.human.flippedCard = null;
     }
-    recordAndUpdate({ ...newState, statusMessage: "Carta enviada a fundacion" }, { type: "foundation", card, source });
-  }, [state, recordAndUpdate]);
+  };
 
-  // ─── Jugada humana: mover carta a casa ──────────────────────────────────
+  // ── Mover carta a fundacion ──────────────────────────────────────────────
+  const playToFoundation = useCallback((card, source, houseIndex) => {
+    const s = stateRef.current;
+    if (s.phase !== GAME_PHASES.HUMAN_TURN) return;
+    const fKey = canPlayToFoundation(card, s.foundations);
+    if (!fKey) return;
+
+    const ns = cloneState(s);
+    removeFromSource(ns, source, houseIndex);
+    ns.foundations[fKey] = [...ns.foundations[fKey], { ...card, faceUp: true }];
+    ns.statusMessage = "Carta a fundacion";
+
+    const winner = checkVictory(ns);
+    if (winner) { update({ ...ns, phase: GAME_PHASES.GAME_OVER, winner }, { type: "foundation", card }); return; }
+    update(ns, { type: "foundation", card, source });
+  }, [update]);
+
+  // ── Mover carta a casa (casas son neutrales) ─────────────────────────────
+  // Convencion: indices 0-3 = human.houses, indices 4-7 = ai.houses
   const playToHouse = useCallback((card, source, sourceIndex, targetIndex) => {
-    if (state.phase !== GAME_PHASES.HUMAN_TURN) return;
-    if (!canPlayToHouse(card, state.human.houses[targetIndex])) return;
+    const s = stateRef.current;
+    if (s.phase !== GAME_PHASES.HUMAN_TURN) return;
 
-    const human = { ...state.human };
-    if (source === "crapette") human.crapette = human.crapette.slice(0, -1);
-    else if (source === "house") human.houses[sourceIndex] = human.houses[sourceIndex].slice(0, -1);
-    else if (source === "discard") human.discard = human.discard.slice(0, -1);
-    else if (source === "flipped") human.flippedCard = null;
-    human.houses[targetIndex] = [...human.houses[targetIndex], { ...card, faceUp: true }];
+    const isAITarget = targetIndex >= 4;
+    const realTargetIndex = isAITarget ? targetIndex - 4 : targetIndex;
+    const targetPile = isAITarget
+      ? s.ai.houses[realTargetIndex]
+      : s.human.houses[realTargetIndex];
 
-    recordAndUpdate({ ...state, human, statusMessage: "Carta movida a casa" }, { type: "house", card, source });
-  }, [state, recordAndUpdate]);
+    if (!targetPile) return;
+    if (!canPlayToHouse(card, targetPile)) return;
 
-  // ─── Jugada humana: voltear carta del Talon ──────────────────────────────
+    const ns = cloneState(s);
+    removeFromSource(ns, source, sourceIndex);
+
+    if (isAITarget) {
+      ns.ai.houses[realTargetIndex].push({ ...card, faceUp: true });
+    } else {
+      ns.human.houses[realTargetIndex].push({ ...card, faceUp: true });
+    }
+    ns.statusMessage = "Carta movida";
+    update(ns, { type: "house", card, source });
+  }, [update]);
+
+  // ── Voltear carta del talon ──────────────────────────────────────────────
   const flipTalon = useCallback(() => {
-    if (state.phase !== GAME_PHASES.HUMAN_TURN) return;
-    let human = { ...state.human };
+    const s = stateRef.current;
+    if (s.phase !== GAME_PHASES.HUMAN_TURN) return;
+    const ns = cloneState(s);
 
-    // Si ya hay carta volteada encima del talon, pasarla al descarte y terminar turno
-    if (human.flippedCard) {
-      const flipped = human.flippedCard;
-      human.discard = [...human.discard, flipped];
-      human.flippedCard = null;
-      recordAndUpdate(
-        { ...state, human, phase: GAME_PHASES.AI_TURN, currentPlayer: "ai", statusMessage: "Turno de la IA" },
-        { type: "discard", card: flipped }
-      );
+    // Si hay carta volteada, descartarla y terminar turno
+    if (ns.human.flippedCard) {
+      ns.human.discard.push(ns.human.flippedCard);
+      ns.human.flippedCard = null;
+      ns.phase = GAME_PHASES.AI_TURN;
+      ns.currentPlayer = "ai";
+      ns.statusMessage = "Turno de la IA";
+      update(ns, { type: "discard", card: ns.human.flippedCard });
       return;
     }
 
     // Reconstruir talon si esta vacio
-    if (human.talon.length === 0) {
-      human = rebuildTalon(human);
-      if (human.talon.length === 0) return;
+    if (ns.human.talon.length === 0) {
+      const rebuilt = rebuildTalon(ns.human);
+      ns.human.talon = rebuilt.talon;
+      ns.human.discard = rebuilt.discard;
     }
+    if (ns.human.talon.length === 0) return;
 
-    // Voltear carta — queda visible encima del talon
-    const card = { ...human.talon[human.talon.length - 1], faceUp: true };
-    human.talon = human.talon.slice(0, -1);
-    human.flippedCard = card;
+    // Voltear carta
+    const card = { ...ns.human.talon.pop(), faceUp: true };
+    ns.human.flippedCard = card;
+    ns.statusMessage = "Carta volteada — jugala o presiona Talon para descartar";
+    update(ns, { type: "flip", card });
+  }, [update]);
 
-    recordAndUpdate(
-      { ...state, human, statusMessage: "Carta volteada — juegala o presiona Talon para descartar" },
-      { type: "flip", card }
-    );
-  }, [state, recordAndUpdate]);
-
-  // ─── Descartar carta volteada del Talon ───────────────────────────────────
+  // ── Descartar carta volteada ─────────────────────────────────────────────
   const discardFlipped = useCallback(() => {
-    if (state.phase !== GAME_PHASES.HUMAN_TURN) return;
-    if (!state.human.flippedCard) return;
-    const card = state.human.flippedCard;
-    const human = {
-      ...state.human,
-      discard: [...state.human.discard, { ...card, faceUp: true }],
-      flippedCard: null,
-    };
-    const newState = { ...state, human, phase: GAME_PHASES.AI_TURN, currentPlayer: "ai", statusMessage: "Turno de la IA" };
-    recordAndUpdate(newState, { type: "discard", card });
-  }, [state, recordAndUpdate]);
+    const s = stateRef.current;
+    if (s.phase !== GAME_PHASES.HUMAN_TURN) return;
+    if (!s.human.flippedCard) return;
+    const ns = cloneState(s);
+    const card = ns.human.flippedCard;
+    ns.human.discard.push({ ...card, faceUp: true });
+    ns.human.flippedCard = null;
+    ns.phase = GAME_PHASES.AI_TURN;
+    ns.currentPlayer = "ai";
+    ns.statusMessage = "Turno de la IA";
+    update(ns, { type: "discard", card });
+  }, [update]);
 
-  // ─── Turno de la IA ──────────────────────────────────────────────────────
+  // ── Turno de la IA ───────────────────────────────────────────────────────
   const runAITurn = useCallback(() => {
-    if (state.phase !== GAME_PHASES.AI_TURN) return;
+    const s = stateRef.current;
+    if (s.phase !== GAME_PHASES.AI_TURN) return;
 
-    const move = getAIMove(state.ai, state.human, state.foundations, state.aiLevel);
-    if (!move) {
-      // IA sin jugadas — voltea Talon
-      let ai = { ...state.ai };
-      if (ai.talon.length === 0) ai = rebuildTalon(ai);
-      if (ai.talon.length === 0) {
-        // Sin cartas en talon ni descarte — pasa turno
-        recordAndUpdate({ ...state, phase: GAME_PHASES.HUMAN_TURN, currentPlayer: "human", statusMessage: "Tu turno" }, { type: "pass" });
-        return;
-      }
-      const card = { ...ai.talon[ai.talon.length - 1], faceUp: true };
-      ai.talon = ai.talon.slice(0, -1);
-      ai.discard = [...ai.discard, card];
-      recordAndUpdate(
-        { ...state, ai, phase: GAME_PHASES.HUMAN_TURN, currentPlayer: "human", statusMessage: "Tu turno" },
-        { type: "discard", card, player: "ai" }
-      );
+    const ns = cloneState(s);
+
+    // Buscar jugada
+    const move = getAIMove(ns.ai, ns.human, ns.foundations, ns.aiLevel);
+    if (move) {
+      const newState = applyAIMove(ns, move);
+      if (!newState) return;
+      const winner = checkVictory(newState);
+      if (winner) { update({ ...newState, phase: GAME_PHASES.GAME_OVER, winner }, move); return; }
+      update({ ...newState, statusMessage: "IA jugando..." }, move);
       return;
     }
 
-    const newState = applyAIMove(state, move);
-    if (!newState) return;
-    const winner = checkVictory(newState);
-    if (winner) { recordAndUpdate({ ...newState, phase: GAME_PHASES.GAME_OVER, winner }, move); return; }
-    recordAndUpdate({ ...newState, statusMessage: "IA jugando..." }, move);
-  }, [state, recordAndUpdate]);
-
-  // ─── Declarar Stop ───────────────────────────────────────────────────────
-  const declareStop = useCallback(() => {
-    if (state.phase !== GAME_PHASES.AI_TURN) return;
-    const result = evaluateStop(state, lastMove);
-    if (result.valid) {
-      setState(s => ({
-        ...s,
-        phase: GAME_PHASES.HUMAN_TURN,
-        currentPlayer: "human",
-        stopDeclared: true,
-        stopValid: true,
-        stopMessage: result.reason,
-        statusMessage: "Stop valido — es tu turno",
-      }));
-    } else {
-      if (state.penaltyEnabled) {
-        const human = applyStopPenalty(state.human);
-        setState(s => ({
-          ...s,
-          human,
-          stopDeclared: true,
-          stopValid: false,
-          stopMessage: result.reason,
-          statusMessage: "Stop invalido — penalizacion aplicada",
-        }));
-      } else {
-        setState(s => ({
-          ...s,
-          stopDeclared: true,
-          stopValid: false,
-          stopMessage: result.reason,
-          statusMessage: "Stop invalido — el juego continua",
-        }));
-      }
+    // Sin jugadas — voltear talon o descartar flipped
+    if (ns.ai.flippedCard) {
+      const card = ns.ai.flippedCard;
+      ns.ai.discard.push(card);
+      ns.ai.flippedCard = null;
+      ns.phase = GAME_PHASES.HUMAN_TURN;
+      ns.currentPlayer = "human";
+      ns.statusMessage = "Tu turno";
+      update(ns, { type: "discard", card, player: "ai" });
+      return;
     }
-  }, [state, lastMove]);
 
-  // ─── Reiniciar juego ─────────────────────────────────────────────────────
+    if (ns.ai.talon.length === 0) {
+      const rebuilt = rebuildTalon(ns.ai);
+      ns.ai.talon = rebuilt.talon;
+      ns.ai.discard = rebuilt.discard;
+    }
+
+    if (ns.ai.talon.length === 0) {
+      ns.phase = GAME_PHASES.HUMAN_TURN;
+      ns.currentPlayer = "human";
+      ns.statusMessage = "Tu turno";
+      update(ns, { type: "pass" });
+      return;
+    }
+
+    const card = { ...ns.ai.talon.pop(), faceUp: true };
+    ns.ai.flippedCard = card;
+    update({ ...ns, statusMessage: "IA jugando..." }, { type: "flip", card, player: "ai" });
+  }, [update]);
+
+  // ── Declarar Stop ────────────────────────────────────────────────────────
+  const declareStop = useCallback(() => {
+    const s = stateRef.current;
+    if (s.phase !== GAME_PHASES.AI_TURN) return;
+    // TODO: evaluar stop
+    setState(prev => ({
+      ...prev,
+      phase: GAME_PHASES.HUMAN_TURN,
+      currentPlayer: "human",
+      statusMessage: "Stop declarado — tu turno",
+    }));
+  }, []);
+
+  // ── Reiniciar ────────────────────────────────────────────────────────────
   const resetGame = useCallback(() => {
-    if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
     setState(createInitialState(config));
     setHistory(createHistory());
     setLastMove(null);
