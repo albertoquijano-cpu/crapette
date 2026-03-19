@@ -108,6 +108,24 @@ export function useGameLoop(config) {
     update(ns, { type: "house", card, source });
   }, [update]);
 
+  // ── Mover carta al crapette o descarte del rival ────────────────────────
+  const playToRivalPile = useCallback((card, source, sourceIndex, pileType) => {
+    const s = stateRef.current;
+    if (s.phase !== GAME_PHASES.HUMAN_TURN) return;
+    const ns = cloneState(s);
+    removeFromSource(ns, source, sourceIndex);
+    if (pileType === "discard") {
+      ns.ai.discard.push({ ...card, faceUp: true });
+    } else if (pileType === "crapette") {
+      ns.ai.crapette.push({ ...card, faceUp: true });
+      ns.ai.crapette = ns.ai.crapette.map((c, i) => ({
+        ...c, faceUp: i === ns.ai.crapette.length - 1
+      }));
+    }
+    ns.statusMessage = "Carta enviada al rival";
+    update(ns, { type: pileType, card, source });
+  }, [update]);
+
   // ── Voltear carta del talon ──────────────────────────────────────────────
   const flipTalon = useCallback(() => {
     const s = stateRef.current;
@@ -230,6 +248,7 @@ export function useGameLoop(config) {
     lastMove,
     playToFoundation,
     playToHouse,
+    playToRivalPile,
     flipTalon,
     discardFlipped,
     runAITurn,

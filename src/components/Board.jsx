@@ -15,7 +15,7 @@ const SUITS = ["spades", "hearts", "diamonds", "clubs"];
 export function Board({ config }) {
   const {
     state,
-    playToFoundation, playToHouse, flipTalon, discardFlipped,
+    playToFoundation, playToHouse, playToRivalPile, flipTalon, discardFlipped,
     runAITurn, declareStop, resetGame,
   } = useGameLoop(config);
 
@@ -34,6 +34,23 @@ export function Board({ config }) {
       setSelected(null);
     } else {
       setSelected({ card, source, houseIndex });
+    }
+  };
+
+  // Mover carta seleccionada al crapette o descarte del rival
+  const moveToRivalPile = (pileType, pile) => {
+    if (!selected || !isHumanTurn) return;
+    const top = pile.length > 0 ? pile[pile.length - 1] : null;
+    const card = selected.card;
+    console.log('moveToRivalPile', pileType, 'top:', top?.rank, top?.suit, 'card:', card.rank, card.suit, 'check:', top ? (card.suit === top.suit && (card.value === top.value + 1 || card.value === top.value - 1)) : 'empty pile');
+    if (top) {
+      if (card.suit === top.suit && (card.value === top.value + 1 || card.value === top.value - 1)) {
+        playToRivalPile(card, selected.source, selected.houseIndex, pileType);
+        setSelected(null);
+      }
+    } else {
+      playToRivalPile(card, selected.source, selected.houseIndex, pileType);
+      setSelected(null);
     }
   };
 
@@ -152,7 +169,8 @@ export function Board({ config }) {
         </div>
 
         {/* Descarte */}
-        <div className="pile-zone__item">
+        <div className="pile-zone__item"
+          onClick={!isHuman && selected ? () => moveToRivalPile("discard", ps.discard) : undefined}>
           <div className="pile-zone__label">Descarte ({ps.discard.length})</div>
           {discardTop ? (
             <div className={!canUseDiscard && isHuman ? "pile-zone__locked" : ""}>
@@ -160,24 +178,26 @@ export function Board({ config }) {
                 selected={selected?.source === "discard" && isHuman}
                 onClick={isHuman && canUseDiscard
                   ? () => select(discardTop, "discard", null)
-                  : !isHuman && selected
-                    ? () => { playToHouse(selected.card, selected.source, selected.houseIndex, "rival_discard"); setSelected(null); }
-                    : undefined} />
+                  : undefined} />
             </div>
           ) : (
-            <div className="pile-zone__empty">—</div>
+            <div className={"pile-zone__empty" + (!isHuman && selected ? " pile-zone__empty--active" : "")}>—</div>
           )}
         </div>
 
         {/* Crapette */}
-        <div className="pile-zone__item">
+        <div className="pile-zone__item"
+          onClick={!isHuman && selected ? () => moveToRivalPile("crapette", ps.crapette) : undefined}>
           <div className="pile-zone__label">Crapette ({ps.crapette.length})</div>
           {crapetteTop ? (
             <Card card={{ ...crapetteTop, faceUp: true }}
               selected={selected?.source === "crapette" && isHuman}
-              onClick={isHuman ? () => select(crapetteTop, "crapette", null) : undefined} />
+              onClick={isHuman
+                ? () => select(crapetteTop, "crapette", null)
+                : selected ? () => moveToRivalPile("crapette", ps.crapette) : undefined} />
           ) : (
-            <div className="pile-zone__empty">✓</div>
+            <div className={"pile-zone__empty" + (!isHuman && selected ? " pile-zone__empty--active" : "")}
+              onClick={!isHuman && selected ? () => moveToRivalPile("crapette", ps.crapette) : undefined}>✓</div>
           )}
         </div>
       </div>

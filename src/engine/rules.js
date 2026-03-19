@@ -14,11 +14,11 @@ export function canPlayToFoundation(card, foundations) {
   return null;
 }
 
-// Casa: orden descendente, colores alternados, casa vacia solo acepta Rey
+// Casa: orden descendente, colores alternados, casa vacia acepta cualquier carta
 export function canPlayToHouse(card, targetPile) {
   if (!card) return false;
   const top = getTopCard(targetPile);
-  if (!top) return card.value === 13; // Solo Rey en casa vacia
+  if (!top) return true; // Casa vacia acepta cualquier carta
   return (card.value === top.value - 1 && card.color !== top.color);
 }
 
