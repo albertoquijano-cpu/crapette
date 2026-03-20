@@ -113,21 +113,40 @@ function getExpertMove(ai, human, foundations) {
 
 // Nivel Medio: mezcla basico y experto
 function getMediumMove(ai, human, foundations) {
-  // Siempre hace jugadas obligatorias
+  // Siempre intenta jugadas — basico primero, luego experto
   const basic = getBasicMove(ai, human, foundations);
   if (basic) return basic;
-  // 50% de las veces juega experto
-  if (Math.random() > 0.5) return getExpertMove(ai, human, foundations);
-  return null;
+  return getExpertMove(ai, human, foundations);
 }
 
+// Ultimo movimiento para evitar loops
+let lastAIMove = null;
+
 export function getAIMove(ai, human, foundations, level) {
+  let move;
   switch (level) {
-    case "basic":  return getBasicMove(ai, human, foundations);
-    case "expert": return getExpertMove(ai, human, foundations);
+    case "basic":  move = getBasicMove(ai, human, foundations); break;
+    case "expert": move = getExpertMove(ai, human, foundations); break;
     case "medium":
-    default:       return getMediumMove(ai, human, foundations);
+    default:       move = getMediumMove(ai, human, foundations);
   }
+
+  // Detectar loop: si el movimiento deshace el anterior, ignorarlo
+  if (move && lastAIMove) {
+    const isLoop = (
+      move.type === "house" &&
+      lastAIMove.type === "house" &&
+      move.card.id === lastAIMove.card.id &&
+      move.target === lastAIMove.houseIndex
+    );
+    if (isLoop) {
+      lastAIMove = null;
+      return null;
+    }
+  }
+
+  lastAIMove = move;
+  return move;
 }
 
 export function applyAIMove(state, move) {
