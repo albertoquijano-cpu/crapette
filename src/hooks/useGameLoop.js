@@ -187,7 +187,13 @@ export function useGameLoop(config) {
       if (!newState) return;
       const winner = checkVictory(newState);
       if (winner) { update({ ...newState, phase: GAME_PHASES.GAME_OVER, winner }, move); return; }
-      update({ ...newState, statusMessage: "IA jugando..." }, move);
+      // Movimientos a casas son mas lentos para que el humano pueda seguirlos
+      const extraDelay = (move.type === "house" || move.type === "human_house") ? 300 : 0;
+      if (extraDelay > 0) {
+        setTimeout(() => update({ ...newState, statusMessage: "IA jugando..." }, move), extraDelay);
+      } else {
+        update({ ...newState, statusMessage: "IA jugando..." }, move);
+      }
       return;
     }
 

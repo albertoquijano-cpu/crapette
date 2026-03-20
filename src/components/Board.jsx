@@ -85,9 +85,10 @@ export function Board({ config }) {
   };
 
   // Render de una casa
-  const renderHouse = (pile, houseIndex) => {
+  const renderHouse = (pile, houseIndex, reverse = false) => {
     const top = pile.length > 0 ? pile[pile.length - 1] : null;
     const isTopSelected = selected && top && selected.card.id === top.id;
+    const cardWidth = 18;
 
     return (
       <div key={houseIndex} className="house-slot"
@@ -96,12 +97,15 @@ export function Board({ config }) {
           <div className={"house-slot__empty" + (selected ? " house-slot__empty--active" : "")}
             onClick={() => moveToHouse(houseIndex)} />
         ) : (
-          <div className="house-slot__stack">
+          <div className="house-slot__stack" style={{ width: Math.max(70, pile.length * cardWidth + 52) + "px" }}>
             {pile.map((card, ci) => {
               const isTop = ci === pile.length - 1;
+              const offset = reverse
+                ? (pile.length - 1 - ci) * cardWidth
+                : ci * cardWidth;
               return (
                 <div key={card.id} className="house-slot__card"
-                  style={{ left: ci * 18 + "px" }}>
+                  style={{ left: offset + "px" }}>
                   <Card
                     card={card}
                     selected={isTopSelected && isTop}
@@ -127,7 +131,7 @@ export function Board({ config }) {
         className={"foundation-slot foundation-slot--" + SUIT_COLORS[suit] + (isActive ? " foundation-slot--active" : "")}
         onClick={moveToFoundation}>
         {top
-          ? <Card card={top} small />
+          ? <Card card={top} />
           : <div className="foundation-slot__empty">{SUIT_SYMBOLS[suit]}</div>}
         <span className="foundation-slot__count">{pile.length}</span>
       </div>
@@ -231,13 +235,30 @@ export function Board({ config }) {
         </div>
       </div>
       {renderPileZone("human")}
+      {/* Indicador de turno fijo a la derecha */}
+      <div className="board__turn-indicator">
+        <div className={"board__turn-badge" + (state.currentPlayer === "ai" ? " board__turn-badge--ai" : "")}>
+          {state.currentPlayer === "human" ? "Tu turno" : "IA jugando"}
+        </div>
+        {state.phase === "ai_turn" && (
+          <div style={{fontSize:"0.65em", color:"rgba(255,255,255,0.5)", textAlign:"center", fontFamily:"Cinzel,serif"}}>
+            Presiona tecla = Stop
+          </div>
+        )}
+        {state.stopDeclared && (
+          <div className="board__stop-badge">STOP!</div>
+        )}
+        {state.phase === "game_over" && (
+          <div className="board__turn-badge" style={{color:"#f5d070", borderColor:"#f5d070"}}>
+            {state.winner === "human" ? "Ganaste!" : "Gano la IA"}
+          </div>
+        )}
+      </div>
+
       <div className="board__status">
         <span className={"board__status-msg board__status-msg--" + state.currentPlayer}>
           {state.statusMessage}
         </span>
-        {state.phase === "ai_turn" && (
-          <span className="board__stop-hint">Presiona cualquier tecla para Stop</span>
-        )}
         {state.stopDeclared && (
           <span className={"board__stop-result board__stop-result--" + (state.stopValid ? "valid" : "invalid")}>
             {state.stopValid ? "Stop valido" : "Stop invalido"} — {state.stopMessage}

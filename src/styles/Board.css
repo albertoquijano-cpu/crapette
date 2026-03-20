@@ -50,11 +50,12 @@
 
 .pile-zone__label {
   font-family: 'Cinzel', serif;
-  font-size: 0.55em;
-  letter-spacing: 0.1em;
-  color: var(--gold-dark);
+  font-size: 0.72em;
+  letter-spacing: 0.08em;
+  color: var(--gold);
   text-transform: uppercase;
   white-space: nowrap;
+  font-weight: 600;
 }
 
 .pile-zone__empty {
@@ -141,8 +142,8 @@
 .board__foundations {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px 20px;
+  gap: 8px;
+  padding: 10px 12px;
   background: rgba(0,0,0,0.2);
   border-radius: 12px;
   border: 1.5px solid var(--gold-dark);
@@ -374,4 +375,63 @@
 
 .pile-zone__rebuild-small:hover {
   background: rgba(201,168,76,0.25);
+}
+
+.board__houses--right .house-slot__stack {
+  direction: rtl;
+}
+.board__houses--right .house-slot__card {
+  direction: ltr;
+}
+
+.board__turn-indicator {
+  position: fixed;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 100;
+}
+
+.board__turn-badge {
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-family: 'Cinzel', serif;
+  font-size: 0.85em;
+  letter-spacing: 0.1em;
+  text-align: center;
+  border: 2px solid var(--gold);
+  background: rgba(0,0,0,0.7);
+  color: var(--gold-light);
+  box-shadow: 0 0 20px rgba(201,168,76,0.3);
+}
+
+.board__turn-badge--ai {
+  border-color: #5dade2;
+  color: #5dade2;
+  box-shadow: 0 0 20px rgba(93,173,226,0.3);
+}
+
+.board__stop-badge {
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-family: 'Cinzel', serif;
+  font-size: 0.9em;
+  letter-spacing: 0.15em;
+  text-align: center;
+  border: 2px solid var(--stop-red);
+  background: rgba(231,76,60,0.2);
+  color: var(--stop-red);
+  box-shadow: 0 0 20px rgba(231,76,60,0.4);
+  animation: pulse 0.8s ease-in-out infinite;
+}
+
+.board__pile-count {
+  font-size: 0.7em;
+  color: var(--gold);
+  font-family: 'Cinzel', serif;
+  text-align: center;
+  letter-spacing: 0.1em;
 }
