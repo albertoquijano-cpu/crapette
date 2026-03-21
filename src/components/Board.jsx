@@ -91,23 +91,30 @@ export function Board({ config }) {
     const cardWidth = 18;
     const totalWidth = Math.max(70, (pile.length - 1) * cardWidth + 70);
 
+    const stackWidth = Math.max(70, (pile.length - 1) * cardWidth + 70);
+
     return (
       <div key={houseIndex} className="house-slot"
-        style={{ width: totalWidth + "px" }}
+        style={{ width: stackWidth + "px" }}
         onClick={() => !top && moveToHouse(houseIndex)}>
         {pile.length === 0 ? (
           <div className={"house-slot__empty" + (selected ? " house-slot__empty--active" : "")}
             onClick={() => moveToHouse(houseIndex)} />
         ) : (
-          <div className="house-slot__stack" style={{ width: totalWidth + "px" }}>
+          <div className="house-slot__stack" style={{ width: stackWidth + "px", position: "relative" }}>
             {pile.map((card, ci) => {
               const isTop = ci === pile.length - 1;
-              const offset = reverse
-                ? (pile.length - 1 - ci) * cardWidth
+              // Normal (derecha): base a la izquierda, nuevas van a la derecha
+              // Reverse (izquierda): base a la derecha (stackWidth-70), nuevas van a la izquierda
+              // Normal: base izquierda, nuevas van a la derecha → left = ci * cardWidth
+              // Reverse: base derecha FIJA, nuevas van a la izquierda → left = (maxCards-1-ci) * cardWidth
+              const maxOffset = (pile.length - 1) * cardWidth;
+              const left = reverse
+                ? maxOffset - ci * cardWidth
                 : ci * cardWidth;
               return (
                 <div key={card.id} className="house-slot__card"
-                  style={{ left: offset + "px", zIndex: ci + 1 }}>
+                  style={{ left: left + "px", zIndex: ci + 1 }}>
                   <Card
                     card={card}
                     selected={isTopSelected && isTop}

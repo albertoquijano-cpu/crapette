@@ -435,3 +435,21 @@
   text-align: center;
   letter-spacing: 0.1em;
 }
+
+
+
+.board__houses--left {
+  align-items: flex-end;
+}
+
+.board__houses--left .house-slot {
+  width: 70px;
+  overflow: visible;
+  position: relative;
+}
+
+.board__houses--left .house-slot__stack {
+  position: relative;
+  width: 70px;
+  overflow: visible;
+}
