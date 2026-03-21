@@ -89,15 +89,17 @@ export function Board({ config }) {
     const top = pile.length > 0 ? pile[pile.length - 1] : null;
     const isTopSelected = selected && top && selected.card.id === top.id;
     const cardWidth = 18;
+    const totalWidth = Math.max(70, (pile.length - 1) * cardWidth + 70);
 
     return (
       <div key={houseIndex} className="house-slot"
+        style={{ width: totalWidth + "px" }}
         onClick={() => !top && moveToHouse(houseIndex)}>
         {pile.length === 0 ? (
           <div className={"house-slot__empty" + (selected ? " house-slot__empty--active" : "")}
             onClick={() => moveToHouse(houseIndex)} />
         ) : (
-          <div className="house-slot__stack" style={{ width: Math.max(70, pile.length * cardWidth + 52) + "px" }}>
+          <div className="house-slot__stack" style={{ width: totalWidth + "px" }}>
             {pile.map((card, ci) => {
               const isTop = ci === pile.length - 1;
               const offset = reverse
@@ -105,7 +107,7 @@ export function Board({ config }) {
                 : ci * cardWidth;
               return (
                 <div key={card.id} className="house-slot__card"
-                  style={{ left: offset + "px" }}>
+                  style={{ left: offset + "px", zIndex: ci + 1 }}>
                   <Card
                     card={card}
                     selected={isTopSelected && isTop}
@@ -125,10 +127,9 @@ export function Board({ config }) {
     const key = suit + "_" + owner;
     const pile = state.foundations[key];
     const top = pile.length > 0 ? pile[pile.length - 1] : null;
-    const isActive = selected && canPlayToFoundation(selected.card, state.foundations) === key;
     return (
       <div key={key}
-        className={"foundation-slot foundation-slot--" + SUIT_COLORS[suit] + (isActive ? " foundation-slot--active" : "")}
+        className={"foundation-slot foundation-slot--" + SUIT_COLORS[suit]}
         onClick={moveToFoundation}>
         {top
           ? <Card card={top} />
@@ -220,7 +221,7 @@ export function Board({ config }) {
       {renderPileZone("ai")}
       <div className="board__center">
         <div className="board__houses board__houses--left">
-          {allHouses.slice(4, 8).map(({ pile, index }) => renderHouse(pile, index))}
+          {allHouses.slice(4, 8).reverse().map(({ pile, index }) => renderHouse(pile, index, true))}
         </div>
         <div className="board__foundations">
           {SUITS.map(suit => (

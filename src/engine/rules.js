@@ -92,6 +92,15 @@ export function getMandatoryFoundationMoves(playerState, rivalState, foundations
   return mandatory;
 }
 
+// Verificar si hay casas vacias que deben llenarse con el crapette
+export function getMandatoryCasaFills(playerState) {
+  const emptyCasas = playerState.houses.filter(h => h.length === 0);
+  if (emptyCasas.length === 0) return [];
+  const crapetteTop = getTopCard(playerState.crapette);
+  if (!crapetteTop) return [];
+  return [{ card: crapetteTop, reason: "Hay casas vacias que deben llenarse con el Crapette" }];
+}
+
 // Evaluacion de Stop
 export function evaluateStop(state, lastMove) {
   const player = state.currentPlayer;
@@ -99,18 +108,30 @@ export function evaluateStop(state, lastMove) {
   const rival = player === "human" ? "ai" : "human";
   const rivalState = state[rival];
 
-  const mandatoryBefore = getMandatoryFoundationMoves(playerState, rivalState, state.foundations);
-  if (mandatoryBefore.length > 0 && lastMove?.type !== "foundation") {
-    return { valid: true, reason: "Habia jugadas obligatorias a las fundaciones sin realizar" };
+  // Condicion A: habia jugadas obligatorias a fundaciones
+  const mandatory = getMandatoryFoundationMoves(playerState, rivalState, state.foundations);
+  if (mandatory.length > 0 && lastMove?.type !== "foundation") {
+    return { valid: true, reason: "Habia jugadas obligatorias a las fundaciones" };
   }
-  if (lastMove?.type === "flip" || lastMove?.type === "talon") {
-    const foundationKey = canPlayToFoundation(lastMove.card, state.foundations);
-    if (foundationKey) return { valid: true, reason: "La carta destapada debia ir a una fundacion" };
+
+  // Condicion B: carta destapada del talon debia ir a fundacion
+  if (lastMove?.type === "flip") {
+    const fKey = canPlayToFoundation(lastMove.card, state.foundations);
+    if (fKey) return { valid: true, reason: "La carta del talon debia ir a una fundacion" };
   }
-  if (lastMove?.type === "house" || lastMove?.type === "crapette") {
-    const mandatory = getMandatoryFoundationMoves(playerState, rivalState, state.foundations);
-    if (mandatory.length > 0) return { valid: true, reason: "El movimiento libero una carta que debe ir a una fundacion" };
+
+  // Condicion C: movimiento libero carta que debe ir a fundacion
+  if (lastMove?.type === "house" || lastMove?.type === "foundation") {
+    const newMandatory = getMandatoryFoundationMoves(playerState, rivalState, state.foundations);
+    if (newMandatory.length > 0) return { valid: true, reason: "El movimiento libero una carta para la fundacion" };
   }
+
+  // Condicion D: hay casas vacias y el crapette tiene cartas
+  const casaFills = getMandatoryCasaFills(playerState);
+  if (casaFills.length > 0 && lastMove?.type !== "crapette_to_casa") {
+    return { valid: true, reason: casaFills[0].reason };
+  }
+
   return { valid: false, reason: "El Stop no es valido" };
 }
 

@@ -43,12 +43,20 @@ export function Card({ card, onClick, draggable = false, onDragStart, selected =
       draggable={draggable}
       onDragStart={onDragStart}
     >
-      <div className="card__corner card__corner--top">
+      <div className="card__corner card__corner--top-left">
+        <span className="card__rank">{card.rank}</span>
+        <span className="card__suit">{symbol}</span>
+      </div>
+      <div className="card__corner card__corner--top-right">
         <span className="card__rank">{card.rank}</span>
         <span className="card__suit">{symbol}</span>
       </div>
       <div className="card__center">{symbol}</div>
-      <div className="card__corner card__corner--bottom">
+      <div className="card__corner card__corner--bottom-left">
+        <span className="card__rank">{card.rank}</span>
+        <span className="card__suit">{symbol}</span>
+      </div>
+      <div className="card__corner card__corner--bottom-right">
         <span className="card__rank">{card.rank}</span>
         <span className="card__suit">{symbol}</span>
       </div>

@@ -118,7 +118,8 @@ export function getTotalCards(playerState) {
   const houses = playerState.houses.reduce((sum, h) => sum + h.length, 0);
   const talon = playerState.talon.length;
   const discard = playerState.discard.length;
-  return crapette + houses + talon + discard;
+  const flipped = playerState.flippedCard ? 1 : 0;
+  return crapette + houses + talon + discard + flipped;
 }
 
 export function checkVictory(state) {
