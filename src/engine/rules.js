@@ -62,7 +62,7 @@ export function getPlayableCards(playerState, canUseDiscard, canUseCrapette) {
 }
 
 // Jugadas OBLIGATORIAS: cartas a fundaciones y llenar casas vacias con crapette
-export function getMandatoryMoves(playerState, allHouses, foundations, canUseCrapette) {
+export function getMandatoryMoves(playerState, allHouses, foundations, canUseCrapette, player = "human") {
   const mandatory = [];
   const canUseDiscard = playerState.crapette.length === 0;
   const playable = getPlayableCards(playerState, canUseDiscard, canUseCrapette);
@@ -83,9 +83,8 @@ export function getMandatoryMoves(playerState, allHouses, foundations, canUseCra
   // 2. Casas vacias que deben llenarse con el crapette
   // Solo las casas propias del jugador cuentan como obligatorias
   // allHouses[0..3] = human, allHouses[4..7] = ai
-  // Pasamos solo las primeras 4 (del jugador)
   if (canUseCrapette && playerState.crapette.length > 0) {
-    const ownHouses = allHouses.slice(0, 4);
+    const ownHouses = player === "ai" ? allHouses.slice(4, 8) : allHouses.slice(0, 4);
     const hasEmptyOwnHouse = ownHouses.some(h => h.length === 0);
     if (hasEmptyOwnHouse) {
       const crapetteTop = getTopCard(playerState.crapette);

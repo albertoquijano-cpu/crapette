@@ -62,7 +62,9 @@ export function useGameLoop(config) {
   const calcMandatory = (ns, player, canUseCrapette) => {
     const ps = ns[player];
     const allHouses = getAllHouses(ns);
-    return getMandatoryMoves(ps, allHouses, ns.foundations, canUseCrapette);
+    const result = getMandatoryMoves(ps, allHouses, ns.foundations, canUseCrapette);
+    console.log("[calcMandatory]", player, "canUseCrapette:", canUseCrapette, "mandatory:", result.map(m => m.reason));
+    return result;
   };
 
   // Quitar carta de su origen
@@ -111,13 +113,16 @@ export function useGameLoop(config) {
     const s = stateRef.current;
     if (!HUMAN_PHASES.includes(s.phase)) return;
 
-    // Verificar si hay jugadas obligatorias pendientes
-    if (s.mandatoryMoves && s.mandatoryMoves.length > 0) {
+    // Verificar si hay jugadas obligatorias pendientes (con nivel correcto)
+    const hasObligation_house = hasObligatoryMoves(
+      s.human, getAllHouses(s), s.foundations, !s.crapetteUsedThisTurn, s.aiLevel
+    );
+    console.log("[playToHouse] hasObligation:", hasObligation_house, "mandatoryMoves:", s.mandatoryMoves?.length, s.mandatoryMoves?.map(m => m.reason));
+    if (hasObligation_house && s.mandatoryMoves && s.mandatoryMoves.length > 0) {
       const isObligation = s.mandatoryMoves.some(m =>
         m.card.id === card.id && m.source === source && m.type === "fill_empty_casa"
       );
       if (!isObligation) {
-        // STOP automatico - el humano toco una carta sin hacer la obligatoria
         setState(prev => ({
           ...prev,
           stopValid: true,
@@ -156,6 +161,29 @@ export function useGameLoop(config) {
   const playToRivalPile = useCallback((card, source, sourceIndex, pileType) => {
     const s = stateRef.current;
     if (!HUMAN_PHASES.includes(s.phase)) return;
+
+    // Verificar jugadas obligatorias pendientes (con nivel correcto)
+    const hasObligation_rival = hasObligatoryMoves(
+      s.human, getAllHouses(s), s.foundations, !s.crapetteUsedThisTurn, s.aiLevel
+    );
+    if (hasObligation_rival && s.mandatoryMoves && s.mandatoryMoves.length > 0) {
+      const isObligation = s.mandatoryMoves.some(m =>
+        m.card.id === card.id && m.source === source
+      );
+      if (!isObligation) {
+        setState(prev => ({
+          ...prev,
+          stopValid: true,
+          stopMessage: "Stop: " + prev.mandatoryMoves[0].reason,
+          phase: GAME_PHASES.AI_TURN,
+          currentPlayer: "ai",
+          crapetteUsedThisTurn: false,
+          statusMessage: "Stop! La IA ejecutara las jugadas obligatorias",
+        }));
+        return;
+      }
+    }
+
     const ns = cloneState(s);
 
     if (source === "crapette") ns.crapetteUsedThisTurn = true;
@@ -178,8 +206,11 @@ export function useGameLoop(config) {
     const s = stateRef.current;
     if (!HUMAN_PHASES.includes(s.phase)) return;
 
-    // Verificar jugadas obligatorias antes de voltear talon
-    if (s.mandatoryMoves && s.mandatoryMoves.length > 0 && !s.human.flippedCard) {
+    // Verificar jugadas obligatorias antes de voltear talon (con nivel correcto)
+    const hasObligation_flip = hasObligatoryMoves(
+      s.human, getAllHouses(s), s.foundations, !s.crapetteUsedThisTurn, s.aiLevel
+    );
+    if (hasObligation_flip && s.mandatoryMoves && s.mandatoryMoves.length > 0 && !s.human.flippedCard) {
       setState(prev => ({
         ...prev,
         stopValid: true,
@@ -388,7 +419,8 @@ export function useGameLoop(config) {
       s.ai,
       getAllHouses(s),
       s.foundations,
-      !s.crapetteUsedThisTurn
+      !s.crapetteUsedThisTurn,
+      "ai"
     );
 
     if (aiMandatory.length > 0) {
