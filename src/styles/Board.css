@@ -453,3 +453,156 @@
   width: 70px;
   overflow: visible;
 }
+
+.board__mandatory {
+  font-family: 'Cinzel', serif;
+  font-size: 0.75em;
+  color: #f5a623;
+  text-align: center;
+  padding: 5px 10px;
+  border: 1px solid #f5a623;
+  border-radius: 6px;
+  background: rgba(245,166,35,0.1);
+  letter-spacing: 0.05em;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.board__stop-feedback {
+  font-family: 'Cinzel', serif;
+  font-size: 0.75em;
+  text-align: center;
+  padding: 5px 10px;
+  border-radius: 6px;
+}
+
+.board__stop-feedback--valid {
+  color: var(--stop-green);
+  border: 1px solid var(--stop-green);
+  background: rgba(46,204,113,0.1);
+}
+
+.board__stop-feedback--invalid {
+  color: var(--stop-red);
+  border: 1px solid var(--stop-red);
+  background: rgba(231,76,60,0.1);
+}
+
+.board__controls-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.board__btn--stop {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: 2px solid var(--stop-red);
+  background: rgba(231,76,60,0.15);
+  color: var(--stop-red);
+  font-family: 'Cinzel', serif;
+  font-size: 0.85em;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.board__btn--stop:hover {
+  background: rgba(231,76,60,0.3);
+}
+
+/* STOP explosivo estilo comic */
+.board__stop-explosion {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  pointer-events: none;
+}
+
+.board__stop-comic {
+  background: #e74c3c;
+  color: white;
+  font-family: 'Cinzel', serif;
+  font-size: 4em;
+  font-weight: 900;
+  padding: 20px 40px;
+  border-radius: 50%;
+  border: 8px solid #fff;
+  box-shadow: 0 0 0 6px #e74c3c, 0 0 60px rgba(231,76,60,0.8);
+  transform-origin: center;
+  animation: stopExplosion 0.4s ease-out forwards;
+  letter-spacing: 0.1em;
+  text-shadow: 3px 3px 0 #8b0000;
+  position: relative;
+}
+
+.board__stop-comic::before {
+  content: '';
+  position: absolute;
+  inset: -20px;
+  background: radial-gradient(circle, rgba(231,76,60,0.4) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: stopGlow 0.4s ease-out forwards;
+}
+
+/* Picos estilo comic alrededor del circulo */
+.board__stop-comic::after {
+  content: '';
+  position: absolute;
+  inset: -30px;
+  background: 
+    radial-gradient(circle at 50% 0%, #e74c3c 0%, transparent 30%),
+    radial-gradient(circle at 100% 50%, #e74c3c 0%, transparent 30%),
+    radial-gradient(circle at 50% 100%, #e74c3c 0%, transparent 30%),
+    radial-gradient(circle at 0% 50%, #e74c3c 0%, transparent 30%),
+    radial-gradient(circle at 85% 15%, #e74c3c 0%, transparent 25%),
+    radial-gradient(circle at 85% 85%, #e74c3c 0%, transparent 25%),
+    radial-gradient(circle at 15% 85%, #e74c3c 0%, transparent 25%),
+    radial-gradient(circle at 15% 15%, #e74c3c 0%, transparent 25%);
+  border-radius: 50%;
+  z-index: -1;
+}
+
+@keyframes stopExplosion {
+  0%   { transform: scale(0) rotate(-10deg); opacity: 0; }
+  50%  { transform: scale(1.3) rotate(5deg); opacity: 1; }
+  75%  { transform: scale(0.95) rotate(-2deg); }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+@keyframes stopGlow {
+  0%   { transform: scale(0); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Carta anunciada por la IA */
+.board__announced {
+  position: fixed;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  animation: announceSlide 0.3s ease-out;
+}
+
+.board__announced-card {
+  background: rgba(0,0,0,0.85);
+  color: var(--gold-light);
+  font-family: 'Cinzel', serif;
+  font-size: 1em;
+  padding: 10px 20px;
+  border-radius: 10px;
+  border: 2px solid var(--gold);
+  letter-spacing: 0.1em;
+  box-shadow: 0 0 20px rgba(201,168,76,0.4);
+}
+
+@keyframes announceSlide {
+  from { transform: translateX(-50%) translateY(20px); opacity: 0; }
+  to   { transform: translateX(-50%) translateY(0); opacity: 1; }
+}

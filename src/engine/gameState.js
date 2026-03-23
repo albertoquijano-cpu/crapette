@@ -16,11 +16,21 @@ export const AI_LEVELS = {
 export const GAME_PHASES = {
   SETUP: "setup",
   HUMAN_TURN: "human_turn",
+  HUMAN_CRAPETTE: "human_crapette",   // Fase: jugando cartas del crapette
+  HUMAN_TALON: "human_talon",         // Fase: jugando cartas del talon
   AI_TURN: "ai_turn",
+  AI_CRAPETTE: "ai_crapette",
+  AI_TALON: "ai_talon",
+  STOP_DECLARED: "stop_declared",     // Stop declarado, pendiente evaluacion
   STOP_EVALUATION: "stop_evaluation",
   GAME_OVER: "game_over",
   REPLAY: "replay",
 };
+
+// Fases activas del humano
+export const HUMAN_PHASES = ["human_turn", "human_crapette", "human_talon"];
+// Fases activas de la IA
+export const AI_PHASES = ["ai_turn", "ai_crapette", "ai_talon"];
 
 export function createInitialState(config = {}) {
   const {
@@ -79,6 +89,10 @@ export function createInitialState(config = {}) {
     currentPlayer: "human",
     turnNumber: 0,
     winner: null,
+    crapetteUsedThisTurn: false,  // Ya no puede usar crapette este turno
+    mandatoryMoves: [],           // Jugadas obligatorias pendientes
+    stopMessage: "",
+    stopValid: null,
 
     // Historial para replay
     history: [],

@@ -1,6 +1,6 @@
 // Board.jsx - Logica simplificada, casas neutrales
 
-import { useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { Card } from "./Card.jsx";
 import { useGameLoop } from "../hooks/useGameLoop.js";
 import { useStopDetection } from "../hooks/useStopDetection.js";
@@ -14,22 +14,52 @@ const SUITS = ["spades", "hearts", "diamonds", "clubs"];
 
 export function Board({ config }) {
   const {
-    state,
+    state, announcedMove,
     playToFoundation, playToHouse, playToRivalPile, flipTalon, discardFlipped,
     runAITurn, declareStop, resetGame,
   } = useGameLoop(config);
 
-  const [aiSpeed, setAiSpeed] = useState(config.aiSpeed || 1000);
+  const [aiSpeed, setAiSpeed] = useState(config.aiSpeed || 3000);
+  const [showStop, setShowStop] = useState(false);
+  const [stopTriggered, setStopTriggered] = useState(false);
   const [selected, setSelected] = useState(null);
 
   useAI(state.phase, aiSpeed, runAITurn);
   useStopDetection(state.phase, declareStop);
 
+  // showStop se activa desde select() cuando el humano toca carta incorrecta
+
   const isHumanTurn = state.currentPlayer === "human";
+
+  // Verificar si hay jugadas obligatorias y la carta seleccionada no es una de ellas
+  const checkStopOnSelect = (card, source) => {
+    const mandatory = state.mandatoryMoves;
+    if (!mandatory || mandatory.length === 0) return false;
+
+    // Si hay obligatoria de fundacion y esta carta no es la obligatoria
+    const foundationObligation = mandatory.find(m => m.type === "foundation");
+    if (foundationObligation) {
+      const isSameCard = mandatory.some(m => m.type === "foundation" && m.card.id === card.id);
+      if (!isSameCard) return true;
+    }
+
+    // Si hay obligatoria de llenar casa vacia y no viene del crapette
+    const fillObligation = mandatory.find(m => m.type === "fill_empty_casa");
+    if (fillObligation && source !== "crapette") return true;
+
+    return false;
+  };
 
   // Seleccionar o deseleccionar carta
   const select = (card, source, houseIndex) => {
     if (!isHumanTurn) return;
+    // Verificar stop antes de seleccionar
+    if (checkStopOnSelect(card, source)) {
+      setShowStop(true);
+      setTimeout(() => setShowStop(false), 2500);
+      declareStop();
+      return;
+    }
     if (selected && selected.card.id === card.id) {
       setSelected(null);
     } else {
@@ -198,7 +228,7 @@ export function Board({ config }) {
         </div>
 
         {/* Crapette */}
-        <div className="pile-zone__item"
+        <div className={"pile-zone__item" + (isHuman && state.crapetteUsedThisTurn ? " pile-zone__locked" : "")}
           onClick={!isHuman && selected ? () => moveToRivalPile("crapette", ps.crapette) : undefined}>
           <div className="pile-zone__label">Crapette ({ps.crapette.length})</div>
           {crapetteTop ? (
@@ -263,32 +293,64 @@ export function Board({ config }) {
         )}
       </div>
 
+      {/* STOP explosivo */}
+      {showStop && (
+        <div className="board__stop-explosion">
+          <div className="board__stop-comic">
+            <span>¡STOP!</span>
+          </div>
+        </div>
+      )}
+
+      {/* Carta anunciada por la IA */}
+      {announcedMove && (
+        <div className="board__announced">
+          <div className="board__announced-card">
+            IA jugara: {announcedMove.card.rank} {announcedMove.card.suit === "hearts" ? "♥" : announcedMove.card.suit === "diamonds" ? "♦" : announcedMove.card.suit === "clubs" ? "♣" : "♠"}
+          </div>
+        </div>
+      )}
+
       <div className="board__status">
         <span className={"board__status-msg board__status-msg--" + state.currentPlayer}>
           {state.statusMessage}
         </span>
-        {state.stopDeclared && (
-          <span className={"board__stop-result board__stop-result--" + (state.stopValid ? "valid" : "invalid")}>
-            {state.stopValid ? "Stop valido" : "Stop invalido"} — {state.stopMessage}
-          </span>
+
+        {/* Stop feedback */}
+        {state.stopMessage && (
+          <div className={"board__stop-feedback board__stop-feedback--" + (state.stopValid ? "valid" : "invalid")}>
+            {state.stopMessage}
+          </div>
         )}
-        <div className="board__controls">
-          <label className="board__ctrl-label">Velocidad IA</label>
-          <select className="board__ctrl-select" value={aiSpeed}
-            onChange={e => setAiSpeed(Number(e.target.value))}>
-            <option value={2500}>Muy lento</option>
-            <option value={1500}>Lento</option>
-            <option value={1000}>Normal</option>
-            <option value={500}>Rapido</option>
-            <option value={150}>Muy rapido</option>
-          </select>
-          <button className="board__btn" onClick={resetGame}>Nueva partida</button>
+
+        <div className="board__controls-row">
+          {/* Boton Stop */}
+          {(state.phase === "ai_turn" || state.phase === "ai_crapette" || state.phase === "ai_talon") && (
+            <button className="board__btn board__btn--stop" onClick={declareStop}>
+              ✋ STOP
+            </button>
+          )}
+
+          <div className="board__controls">
+            <label className="board__ctrl-label">Velocidad IA</label>
+            <select className="board__ctrl-select" value={aiSpeed}
+              onChange={e => setAiSpeed(Number(e.target.value))}>
+              <option value={8000}>Muy lento</option>
+              <option value={5000}>Lento</option>
+              <option value={3000}>Normal</option>
+              <option value={1500}>Rapido</option>
+              <option value={500}>Muy rapido</option>
+            </select>
+            <button className="board__btn" onClick={resetGame}>Nueva partida</button>
+          </div>
         </div>
+
         {state.phase === "game_over" && (
           <div className="board__gameover">
             {state.winner === "human" ? "Ganaste!" : "Gano la IA"}
           </div>
         )}
+
       </div>
     </div>
   );
