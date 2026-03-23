@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { createInitialState, checkVictory, GAME_PHASES, HUMAN_PHASES, AI_PHASES } from "../engine/gameState.js";
-import { canPlayToFoundation, canPlayToHouse, rebuildTalon, getMandatoryMoves, applyStopPenalty } from "../engine/rules.js";
+import { canPlayToFoundation, canPlayToHouse, rebuildTalon, getMandatoryMoves, applyStopPenalty, hasObligatoryMoves } from "../engine/rules.js";
 import { getAIMove, applyAIMove } from "../engine/ai.js";
 import { createHistory, recordMove } from "../engine/moveHistory.js";
 

@@ -103,6 +103,46 @@ export function getMandatoryMoves(playerState, allHouses, foundations, canUseCra
   return mandatory;
 }
 
+// Verificar en tiempo real si hay jugadas obligatorias para el jugador activo
+export function hasObligatoryMoves(playerState, allPlayerHouses, foundations, canUseCrapette) {
+  // 1. Verificar cartas que deben ir a fundaciones
+  const sources = [];
+  
+  if (canUseCrapette) {
+    const crapetteTop = getTopCard(playerState.crapette);
+    if (crapetteTop) sources.push({ card: { ...crapetteTop, faceUp: true }, source: "crapette" });
+  }
+  
+  if (playerState.flippedCard) {
+    sources.push({ card: playerState.flippedCard, source: "flipped" });
+  }
+  
+  playerState.houses.forEach((house, i) => {
+    const top = getTopCard(house);
+    if (top) sources.push({ card: top, source: "house", houseIndex: i });
+  });
+  
+  if (playerState.crapette.length === 0) {
+    const discardTop = getTopCard(playerState.discard);
+    if (discardTop) sources.push({ card: discardTop, source: "discard" });
+  }
+
+  // Tambien cartas de casas del rival (visible en el tablero)
+  // El jugador puede moverlas a fundaciones
+  
+  for (const { card } of sources) {
+    if (canPlayToFoundation(card, foundations)) return true;
+  }
+
+  // 2. Verificar casas vacias que deben llenarse con crapette
+  if (canUseCrapette && playerState.crapette.length > 0) {
+    const hasEmpty = allPlayerHouses.some(h => h.length === 0);
+    if (hasEmpty) return true;
+  }
+
+  return false;
+}
+
 // Penalizacion por Stop invalido o no poder hacer jugada obligatoria
 export function applyStopPenalty(playerState) {
   const discard = [...playerState.discard];

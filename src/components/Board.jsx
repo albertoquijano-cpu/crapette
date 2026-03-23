@@ -5,7 +5,7 @@ import { Card } from "./Card.jsx";
 import { useGameLoop } from "../hooks/useGameLoop.js";
 import { useStopDetection } from "../hooks/useStopDetection.js";
 import { useAI } from "../hooks/useAI.js";
-import { canPlayToFoundation } from "../engine/rules.js";
+import { canPlayToFoundation, hasObligatoryMoves } from "../engine/rules.js";
 import "../styles/Board.css";
 
 const SUIT_SYMBOLS = { spades: "♠", hearts: "♥", diamonds: "♦", clubs: "♣" };
@@ -26,6 +26,16 @@ export function Board({ config }) {
 
   useAI(state.phase, aiSpeed, runAITurn);
   useStopDetection(state.phase, declareStop);
+
+  // Mostrar STOP cuando stopValid se activa
+  const prevStopRef = React.useRef(false);
+  React.useEffect(() => {
+    if (state.stopValid && !prevStopRef.current) {
+      setShowStop(true);
+      setTimeout(() => setShowStop(false), 2500);
+    }
+    prevStopRef.current = state.stopValid || false;
+  }, [state.stopValid]);
 
   // showStop se activa desde select() cuando el humano toca carta incorrecta
 
@@ -55,8 +65,6 @@ export function Board({ config }) {
     if (!isHumanTurn) return;
     // Verificar stop antes de seleccionar
     if (checkStopOnSelect(card, source)) {
-      setShowStop(true);
-      setTimeout(() => setShowStop(false), 2500);
       declareStop();
       return;
     }
@@ -302,14 +310,7 @@ export function Board({ config }) {
         </div>
       )}
 
-      {/* Carta anunciada por la IA */}
-      {announcedMove && (
-        <div className="board__announced">
-          <div className="board__announced-card">
-            IA jugara: {announcedMove.card.rank} {announcedMove.card.suit === "hearts" ? "♥" : announcedMove.card.suit === "diamonds" ? "♦" : announcedMove.card.suit === "clubs" ? "♣" : "♠"}
-          </div>
-        </div>
-      )}
+
 
       <div className="board__status">
         <span className={"board__status-msg board__status-msg--" + state.currentPlayer}>
