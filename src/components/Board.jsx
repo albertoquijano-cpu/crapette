@@ -5,7 +5,7 @@ import { Card } from "./Card.jsx";
 import { useGameLoop } from "../hooks/useGameLoop.js";
 import { useStopDetection } from "../hooks/useStopDetection.js";
 import { useAI } from "../hooks/useAI.js";
-import { canPlayToFoundation, hasObligatoryMoves } from "../engine/rules.js";
+import { canPlayToFoundation, hasObligatoryMoves, isMoveContributingToObligation } from "../engine/rules.js";
 import "../styles/Board.css";
 
 const SUIT_SYMBOLS = { spades: "♠", hearts: "♥", diamonds: "♦", clubs: "♣" };
