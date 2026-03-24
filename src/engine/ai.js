@@ -43,9 +43,15 @@ function getBasicMove(ai, human, foundations) {
 // allHouses = [...human.houses, ...ai.houses] segun useGameLoop
 
 // Buscar movimiento en casas (todas las casas del board)
-function findHouseMove(card, source, houseIndex, allHouses) {
+function findHouseMove(card, source, houseIndex, allHouses, history = []) {
+  // Destinos ya visitados por esta carta (evitar loop)
+  const visitedTargets = history
+    .filter(k => k.startsWith(card.id + ":"))
+    .map(k => parseInt(k.split(">")[1]));
+
   for (let ti = 0; ti < allHouses.length; ti++) {
     if (ti === houseIndex) continue;
+    if (visitedTargets.includes(ti)) continue; // ya fue aqui antes
     if (canPlayToHouse(card, allHouses[ti])) {
       return { card, source, houseIndex, type: "house", target: ti };
     }
@@ -54,7 +60,7 @@ function findHouseMove(card, source, houseIndex, allHouses) {
 }
 
 // Buscar si mover una carta de encima libera una carta obligatoria (fundacion)
-function findUncoverMove(ai, human, foundations, allHouses) {
+function findUncoverMove(ai, human, foundations, allHouses, history = []) {
   // allHouses aqui son todas las casas del board
   for (let hi = 0; hi < allHouses.length; hi++) {
     const house = allHouses[hi];
@@ -63,7 +69,7 @@ function findUncoverMove(ai, human, foundations, allHouses) {
     if (!canPlayToFoundation(buried, foundations)) continue;
     // La carta encima puede moverse?
     const top = house[house.length - 1];
-    const move = findHouseMove(top, "house", hi, allHouses);
+    const move = findHouseMove(top, "house", hi, allHouses, history);
     if (move) return move;
   }
   return null;
@@ -81,7 +87,7 @@ function getExpertMove(ai, human, foundations) {
   }
 
   // 2. OBLIGATORIO: desenterrar carta que debe ir a fundacion (1 movimiento)
-  const uncover = findUncoverMove(ai, human, foundations, allHouses);
+  const uncover = findUncoverMove(ai, human, foundations, allHouses, aiMoveHistory);
   if (uncover) return uncover;
 
   // 3. OBLIGATORIO: llenar casas vacias — con crapette primero, luego flipped
@@ -100,7 +106,7 @@ function getExpertMove(ai, human, foundations) {
   const crapetteTop = getTopCard(ai.crapette);
   if (crapetteTop) {
     const cCard = { ...crapetteTop, faceUp: true };
-    const move = findHouseMove(cCard, "crapette", -1, allHouses);
+    const move = findHouseMove(cCard, "crapette", -1, allHouses, aiMoveHistory);
     if (move) return move;
     // Tambien al rival si aplica
     if (canPlayToRivalDiscard(cCard, human.crapette)) {
@@ -140,7 +146,7 @@ function getExpertMove(ai, human, foundations) {
 
   // 5c. flipped a casas (posicional)
   if (ai.flippedCard) {
-    const move = findHouseMove(ai.flippedCard, "flipped", -1, allHouses);
+    const move = findHouseMove(ai.flippedCard, "flipped", -1, allHouses, aiMoveHistory);
     if (move) return move;
   }
 
@@ -148,7 +154,7 @@ function getExpertMove(ai, human, foundations) {
   for (let si = 0; si < allHouses.length; si++) {
     const card = getTopCard(allHouses[si]);
     if (!card) continue;
-    const move = findHouseMove(card, "house", si, allHouses);
+    const move = findHouseMove(card, "house", si, allHouses, aiMoveHistory);
     if (move) return move;
   }
 
@@ -181,23 +187,21 @@ export function getAIMove(ai, human, foundations, level) {
     return null;
   }
 
-  // Detectar loop: la misma carta oscilando entre casas
+  // Detectar loop: la misma carta volviendo al mismo origen
   if (move.type === "house") {
     const moveKey = move.card.id + ":" + move.houseIndex + ">" + move.target;
-    const reverseKey = move.card.id + ":" + move.target + ">" + (move.houseIndex ?? -1);
-    // Si ya hemos visto este movimiento o su reverso, es loop — parar
-    const hasLoop = aiMoveHistory.some(k =>
-      k === moveKey || k === reverseKey ||
-      k.startsWith(move.card.id + ":") && k.endsWith(">" + move.target)
-    );
-    if (hasLoop) {
-      aiMoveHistory.length = 0;
-      return null;
+    // Solo detectar el reverso directo: A->B seguido de B->A
+    if (aiMoveHistory.length > 0) {
+      const lastKey = aiMoveHistory[aiMoveHistory.length - 1];
+      const reverseKey = move.card.id + ":" + move.target + ">" + move.houseIndex;
+      if (lastKey === reverseKey) {
+        aiMoveHistory.length = 0;
+        return null;
+      }
     }
     aiMoveHistory.push(moveKey);
     if (aiMoveHistory.length > HISTORY_SIZE) aiMoveHistory.shift();
   } else {
-    // Movimiento productivo (fundacion, rival, etc) — resetear historial
     aiMoveHistory.length = 0;
   }
 
