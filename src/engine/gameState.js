@@ -3,8 +3,8 @@
 import { createDeck, dealCards } from "./deck.js";
 
 export const GAME_MODES = {
-  VICTORY_CRAPETTE: "crapette",   // Gana quien vacíe su Crapette primero
-  VICTORY_ALL: "all",             // Gana quien termine todas sus cartas
+  VICTORY_CRAPETTE: "crapette",
+  VICTORY_ALL: "all",
 };
 
 export const AI_LEVELS = {
@@ -16,20 +16,18 @@ export const AI_LEVELS = {
 export const GAME_PHASES = {
   SETUP: "setup",
   HUMAN_TURN: "human_turn",
-  HUMAN_CRAPETTE: "human_crapette",   // Fase: jugando cartas del crapette
-  HUMAN_TALON: "human_talon",         // Fase: jugando cartas del talon
+  HUMAN_CRAPETTE: "human_crapette",
+  HUMAN_TALON: "human_talon",
   AI_TURN: "ai_turn",
   AI_CRAPETTE: "ai_crapette",
   AI_TALON: "ai_talon",
-  STOP_DECLARED: "stop_declared",     // Stop declarado, pendiente evaluacion
+  STOP_DECLARED: "stop_declared",
   STOP_EVALUATION: "stop_evaluation",
   GAME_OVER: "game_over",
   REPLAY: "replay",
 };
 
-// Fases activas del humano
 export const HUMAN_PHASES = ["human_turn", "human_crapette", "human_talon"];
-// Fases activas de la IA
 export const AI_PHASES = ["ai_turn", "ai_crapette", "ai_talon"];
 
 export function createInitialState(config = {}) {
@@ -47,14 +45,12 @@ export function createInitialState(config = {}) {
   const aiDealt = dealCards(aiDeck);
 
   return {
-    // Configuracion
     victoryMode,
     aiLevel,
     aiSpeed,
     penaltyEnabled,
 
-    // Fundaciones centrales: 8 pilas (4 por jugador origen, pero compartidas)
-    // Indexadas por palo: spades, hearts, diamonds, clubs (x2 mazos)
+    // Fundaciones centrales: 8 pilas
     foundations: {
       spades_human: [],
       hearts_human: [],
@@ -66,19 +62,25 @@ export function createInitialState(config = {}) {
       clubs_ai: [],
     },
 
-    // Estado del humano
+    // Casas compartidas del tablero: 8 pilas
+    // indices 0-3: lado izquierdo (antes ai.houses)
+    // indices 4-7: lado derecho (antes human.houses)
+    houses: [
+      ...aiDealt.houses,
+      ...humanDealt.houses,
+    ],
+
+    // Estado del humano (solo pilas personales)
     human: {
       crapette: humanDealt.crapette,
-      houses: humanDealt.houses,
       talon: humanDealt.talon,
       discard: [],
       flippedCard: null,
     },
 
-    // Estado de la IA
+    // Estado de la IA (solo pilas personales)
     ai: {
       crapette: aiDealt.crapette,
-      houses: aiDealt.houses,
       talon: aiDealt.talon,
       discard: [],
       flippedCard: null,
@@ -89,20 +91,11 @@ export function createInitialState(config = {}) {
     currentPlayer: "human",
     turnNumber: 0,
     winner: null,
-    crapetteUsedThisTurn: false,  // Ya no puede usar crapette este turno
-    mandatoryMoves: [],           // Jugadas obligatorias pendientes
+    crapetteUsedThisTurn: false,
+    mandatoryMoves: [],
     stopMessage: "",
     stopValid: null,
-
-    // Historial para replay
-    history: [],
-
-    // Stop
     stopDeclared: false,
-    stopValid: null,
-    stopMessage: "",
-
-    // Mensaje de estado para la UI
     statusMessage: "Tu turno — comienza la partida",
   };
 }
@@ -115,34 +108,23 @@ export function isCrapetteEmpty(playerState) {
   return playerState.crapette.length === 0;
 }
 
-export function isTalonEmpty(playerState) {
-  return playerState.talon.length === 0;
-}
-
-export function isDiscardEmpty(playerState) {
-  return playerState.discard.length === 0;
-}
-
-export function canUseDiscard(playerState) {
-  return isCrapetteEmpty(playerState);
-}
-
-export function getTotalCards(playerState) {
+export function getTotalCards(playerState, houses) {
   const crapette = playerState.crapette.length;
-  const houses = playerState.houses.reduce((sum, h) => sum + h.length, 0);
   const talon = playerState.talon.length;
   const discard = playerState.discard.length;
   const flipped = playerState.flippedCard ? 1 : 0;
-  return crapette + houses + talon + discard + flipped;
+  return crapette + talon + discard + flipped;
 }
 
 export function checkVictory(state) {
   for (const player of ["human", "ai"]) {
     const ps = state[player];
     if (state.victoryMode === GAME_MODES.VICTORY_CRAPETTE) {
-      if (isCrapetteEmpty(ps)) return player;
+      if (ps.crapette.length === 0) return player;
     } else {
-      if (getTotalCards(ps) === 0) return player;
+      // Modo vaciar todo: crapette + talon + discard + flipped = 0
+      const total = ps.crapette.length + ps.talon.length + ps.discard.length + (ps.flippedCard ? 1 : 0);
+      if (total === 0) return player;
     }
   }
   return null;

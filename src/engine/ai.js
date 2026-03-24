@@ -1,26 +1,23 @@
-// ai.js - Logica de IA en tres niveles
+// ai.js - Logica de IA con casas compartidas del tablero
 
-import { canPlayToFoundation, canPlayToHouse, canPlayToRivalDiscard } from "./rules.js";
+import { canPlayToFoundation, canPlayToHouse, canPlayToRivalDiscard, canPlayToRivalCrapette } from "./rules.js";
 import { getTopCard } from "./gameState.js";
 
-// Obtener todas las cartas jugables de la IA
-function getAIPlayable(ai) {
+// Cartas jugables de la IA (crapette, flipped, discard)
+// houses: state.houses (todas las casas del tablero)
+function getAIPlayable(ai, houses) {
   const cards = [];
 
-  // Carta superior del crapette
   const crapetteTop = getTopCard(ai.crapette);
   if (crapetteTop) cards.push({ card: { ...crapetteTop, faceUp: true }, source: "crapette" });
 
-  // Carta volteada del talon
   if (ai.flippedCard) cards.push({ card: ai.flippedCard, source: "flipped" });
 
-  // Cartas superiores de casas
-  ai.houses.forEach((house, i) => {
+  houses.forEach((house, i) => {
     const top = getTopCard(house);
     if (top) cards.push({ card: top, source: "house", houseIndex: i });
   });
 
-  // Carta superior del descarte (solo si crapette vacio)
   if (ai.crapette.length === 0) {
     const discardTop = getTopCard(ai.discard);
     if (discardTop) cards.push({ card: discardTop, source: "discard" });
@@ -29,9 +26,38 @@ function getAIPlayable(ai) {
   return cards;
 }
 
+// Buscar destino en casas para una carta (evitar origen y destinos ya visitados)
+function findHouseMove(card, source, fromIndex, houses, visited = []) {
+  for (let ti = 0; ti < houses.length; ti++) {
+    if (ti === fromIndex) continue;
+    if (visited.includes(ti)) continue;
+    if (canPlayToHouse(card, houses[ti])) {
+      return { card, source, houseIndex: fromIndex, type: "house", target: ti };
+    }
+  }
+  return null;
+}
+
+// Buscar movimiento que desentierr carta util (fundacion o envio al rival)
+function findUncoverMove(houses, foundations, human) {
+  for (let hi = 0; hi < houses.length; hi++) {
+    const house = houses[hi];
+    if (house.length < 2) continue;
+    const buried = house[house.length - 2];
+    const goesToFoundation = canPlayToFoundation(buried, foundations);
+    const goesToRivalDiscard = human.discard && canPlayToRivalDiscard(buried, human.discard);
+    const goesToRivalCrapette = human.crapette && canPlayToRivalCrapette(buried, human.crapette);
+    if (!goesToFoundation && !goesToRivalDiscard && !goesToRivalCrapette) continue;
+    const top = house[house.length - 1];
+    const move = findHouseMove(top, "house", hi, houses, []);
+    if (move) return move;
+  }
+  return null;
+}
+
 // Nivel Basico: solo jugadas a fundaciones evidentes
-function getBasicMove(ai, human, foundations) {
-  const playable = getAIPlayable(ai);
+function getBasicMove(ai, human, houses, foundations) {
+  const playable = getAIPlayable(ai, houses);
   for (const { card, source, houseIndex } of playable) {
     const fKey = canPlayToFoundation(card, foundations);
     if (fKey) return { card, source, houseIndex, type: "foundation", target: fKey };
@@ -39,46 +65,14 @@ function getBasicMove(ai, human, foundations) {
   return null;
 }
 
-// Todas las casas son del board (compartidas). indices 0-3 = izquierda, 4-7 = derecha.
-// allHouses = [...human.houses, ...ai.houses] segun useGameLoop
+// Nivel Experto: prioridades correctas
+function getExpertMove(ai, human, houses, foundations, moveHistory) {
+  const playable = getAIPlayable(ai, houses);
 
-// Buscar movimiento en casas (todas las casas del board)
-function findHouseMove(card, source, houseIndex, allHouses, history = []) {
-  // Destinos ya visitados por esta carta (evitar loop)
-  const visitedTargets = history
-    .filter(k => k.startsWith(card.id + ":"))
+  // Destinos ya visitados por cada carta (para evitar loops)
+  const visitedFor = (cardId, fromIdx) => moveHistory
+    .filter(k => k.startsWith(cardId + ":" + fromIdx + ">"))
     .map(k => parseInt(k.split(">")[1]));
-
-  for (let ti = 0; ti < allHouses.length; ti++) {
-    if (ti === houseIndex) continue;
-    if (visitedTargets.includes(ti)) continue; // ya fue aqui antes
-    if (canPlayToHouse(card, allHouses[ti])) {
-      return { card, source, houseIndex, type: "house", target: ti };
-    }
-  }
-  return null;
-}
-
-// Buscar si mover una carta de encima libera una carta obligatoria (fundacion)
-function findUncoverMove(ai, human, foundations, allHouses, history = []) {
-  // allHouses aqui son todas las casas del board
-  for (let hi = 0; hi < allHouses.length; hi++) {
-    const house = allHouses[hi];
-    if (house.length < 2) continue;
-    const buried = house[house.length - 2];
-    if (!canPlayToFoundation(buried, foundations)) continue;
-    // La carta encima puede moverse?
-    const top = house[house.length - 1];
-    const move = findHouseMove(top, "house", hi, allHouses, history);
-    if (move) return move;
-  }
-  return null;
-}
-
-// Nivel Experto: evalua todas las jugadas posibles con prioridades correctas
-function getExpertMove(ai, human, foundations) {
-  const allHouses = [...human.houses, ...ai.houses];
-  const playable = getAIPlayable(ai);
 
   // 1. OBLIGATORIO: cartas superficiales a fundaciones
   for (const { card, source, houseIndex } of playable) {
@@ -86,100 +80,117 @@ function getExpertMove(ai, human, foundations) {
     if (fKey) return { card, source, houseIndex, type: "foundation", target: fKey };
   }
 
-  // 2. OBLIGATORIO: desenterrar carta que debe ir a fundacion (1 movimiento)
-  const uncover = findUncoverMove(ai, human, foundations, allHouses, aiMoveHistory);
+  // 2. OBLIGATORIO: desenterrar carta que debe ir a fundacion
+  const allVisited = moveHistory.map(k => parseInt(k.split(">")[1])).filter(n => !isNaN(n));
+  const uncover = findUncoverMove(houses, foundations, []);
   if (uncover) return uncover;
 
-  // 3. OBLIGATORIO: llenar casas vacias — con crapette primero, luego flipped
-  const emptyIdx = allHouses.findIndex(h => h.length === 0);
+  // 3. OBLIGATORIO: llenar casas vacias con crapette primero
+  const emptyIdx = houses.findIndex(h => h.length === 0);
   if (emptyIdx >= 0) {
     const crapetteTop = getTopCard(ai.crapette);
     if (crapetteTop) {
-      return { card: { ...crapetteTop, faceUp: true }, source: "crapette", type: "house", target: emptyIdx };
+      return { card: { ...crapetteTop, faceUp: true }, source: "crapette", houseIndex: undefined, type: "house", target: emptyIdx };
     }
     if (ai.flippedCard) {
-      return { card: ai.flippedCard, source: "flipped", type: "house", target: emptyIdx };
+      return { card: ai.flippedCard, source: "flipped", houseIndex: undefined, type: "house", target: emptyIdx };
     }
   }
 
-  // 4. DESARROLLO: vaciar crapette — jugar crapette a cualquier casa valida
+  // 4. Vaciar crapette: jugar crapette a casas o rival
   const crapetteTop = getTopCard(ai.crapette);
   if (crapetteTop) {
     const cCard = { ...crapetteTop, faceUp: true };
-    const move = findHouseMove(cCard, "crapette", -1, allHouses, aiMoveHistory);
+    const visited = visitedFor(cCard.id, -1);
+    const move = findHouseMove(cCard, "crapette", -1, houses, visited);
     if (move) return move;
-    // Tambien al rival si aplica
-    if (canPlayToRivalDiscard(cCard, human.crapette)) {
-      return { card: cCard, source: "crapette", houseIndex: undefined, type: "rival_crapette" };
-    }
-    if (canPlayToRivalDiscard(cCard, human.discard)) {
-      return { card: cCard, source: "crapette", houseIndex: undefined, type: "rival_discard" };
-    }
+    if (canPlayToRivalCrapette(cCard, human.crapette)) return { card: cCard, source: "crapette", type: "rival_crapette" };
+    if (canPlayToRivalDiscard(cCard, human.discard)) return { card: cCard, source: "crapette", type: "rival_discard" };
   }
 
-  // 5. DESARROLLO: enviar al rival (crapette primero — mas dañino) desde cualquier fuente
-  // Evaluar todas las fuentes contra ambas pilas del rival
+  // 5. Jugar flipped al rival o casas
+  if (ai.flippedCard) {
+    if (canPlayToRivalCrapette(ai.flippedCard, human.crapette)) return { card: ai.flippedCard, source: "flipped", type: "rival_crapette" };
+    if (canPlayToRivalDiscard(ai.flippedCard, human.discard)) return { card: ai.flippedCard, source: "flipped", type: "rival_discard" };
+    const visited = visitedFor(ai.flippedCard.id, -1);
+    const move = findHouseMove(ai.flippedCard, "flipped", -1, houses, visited);
+    if (move) return move;
+  }
+
+  // 6. Enviar cartas de casas al rival
   const rivalTargets = [
     { pile: human.crapette, type: "rival_crapette" },
-    { pile: human.discard,  type: "rival_discard"  },
+    { pile: human.discard, type: "rival_discard" },
   ];
-
-  // 5a. flipped al rival
-  if (ai.flippedCard) {
-    for (const { pile, type } of rivalTargets) {
-      if (canPlayToRivalDiscard(ai.flippedCard, pile)) {
-        return { card: ai.flippedCard, source: "flipped", houseIndex: undefined, type };
-      }
-    }
-  }
-
-  // 5b. cartas de casas al rival
   for (const { pile, type } of rivalTargets) {
-    for (let si = 0; si < allHouses.length; si++) {
-      const card = getTopCard(allHouses[si]);
+    for (let si = 0; si < houses.length; si++) {
+      const card = getTopCard(houses[si]);
       if (!card) continue;
-      if (canPlayToRivalDiscard(card, pile)) {
+      const canPlay = type === "rival_crapette" ? canPlayToRivalCrapette(card, pile) : canPlayToRivalDiscard(card, pile);
+      if (canPlay) {
         return { card, source: "house", houseIndex: si, type };
       }
     }
   }
 
-  // 5c. flipped a casas (posicional)
-  if (ai.flippedCard) {
-    const move = findHouseMove(ai.flippedCard, "flipped", -1, allHouses, aiMoveHistory);
-    if (move) return move;
-  }
-
-  // 5d. mover entre casas (posicional)
-  for (let si = 0; si < allHouses.length; si++) {
-    const card = getTopCard(allHouses[si]);
-    if (!card) continue;
-    const move = findHouseMove(card, "house", si, allHouses, aiMoveHistory);
-    if (move) return move;
+  // 7. Intentar liberar una casa completamente para crear espacio vacio
+  // Buscar la casa mas pequeña cuyas cartas puedan redistribuirse en otras casas
+  // Simular movimientos para ver si se puede vaciar completamente
+  for (let si = 0; si < houses.length; si++) {
+    if (houses[si].length === 0) continue;
+    // Simular vaciado de esta casa
+    const houseCopy = houses.map(h => [...h]);
+    let canEmpty = true;
+    // Intentar mover cada carta de esta casa a otra (de arriba hacia abajo)
+    const houseToEmpty = [...houseCopy[si]];
+    houseCopy[si] = [];
+    for (let ci = houseToEmpty.length - 1; ci >= 0; ci--) {
+      const card = houseToEmpty[ci];
+      let moved = false;
+      for (let ti = 0; ti < houseCopy.length; ti++) {
+        if (ti === si) continue;
+        if (houseCopy[ti].length === 0) continue; // no crear otro vacio
+        if (canPlayToHouse(card, houseCopy[ti])) {
+          houseCopy[ti] = [...houseCopy[ti], card];
+          moved = true;
+          break;
+        }
+      }
+      if (!moved) { canEmpty = false; break; }
+    }
+    if (canEmpty && houses[si].length > 0) {
+      // Es posible vaciar esta casa — ejecutar el primer movimiento
+      const card = getTopCard(houses[si]);
+      for (let ti = 0; ti < houses.length; ti++) {
+        if (ti === si) continue;
+        if (houses[ti].length === 0) continue;
+        if (canPlayToHouse(card, houses[ti])) {
+          return { card, source: "house", houseIndex: si, type: "house", target: ti };
+        }
+      }
+    }
   }
 
   return null;
 }
 
-// Nivel Medio: mezcla basico y experto
-function getMediumMove(ai, human, foundations) {
-  // Siempre intenta jugadas — basico primero, luego experto
-  const basic = getBasicMove(ai, human, foundations);
+function getMediumMove(ai, human, houses, foundations, moveHistory) {
+  const basic = getBasicMove(ai, human, houses, foundations);
   if (basic) return basic;
-  return getExpertMove(ai, human, foundations);
+  return getExpertMove(ai, human, houses, foundations, moveHistory);
 }
 
 // Historial de movimientos para detectar loops
 const aiMoveHistory = [];
-const HISTORY_SIZE = 6;
+const HISTORY_SIZE = 8;
 
-export function getAIMove(ai, human, foundations, level) {
+export function getAIMove(ai, human, houses, foundations, level) {
   let move;
   switch (level) {
-    case "basic":  move = getBasicMove(ai, human, foundations); break;
-    case "expert": move = getExpertMove(ai, human, foundations); break;
+    case "basic":  move = getBasicMove(ai, human, houses, foundations); break;
+    case "expert": move = getExpertMove(ai, human, houses, foundations, aiMoveHistory); break;
     case "medium":
-    default:       move = getMediumMove(ai, human, foundations);
+    default:       move = getMediumMove(ai, human, houses, foundations, aiMoveHistory);
   }
 
   if (!move) {
@@ -187,13 +198,13 @@ export function getAIMove(ai, human, foundations, level) {
     return null;
   }
 
-  // Detectar loop: la misma carta volviendo al mismo origen
+  // Registrar movimiento en historial (solo casas)
   if (move.type === "house") {
-    const moveKey = move.card.id + ":" + move.houseIndex + ">" + move.target;
-    // Solo detectar el reverso directo: A->B seguido de B->A
+    const moveKey = (move.card.id || "?") + ":" + (move.houseIndex ?? -1) + ">" + move.target;
+    // Detectar ping-pong directo
     if (aiMoveHistory.length > 0) {
       const lastKey = aiMoveHistory[aiMoveHistory.length - 1];
-      const reverseKey = move.card.id + ":" + move.target + ">" + move.houseIndex;
+      const reverseKey = (move.card.id || "?") + ":" + move.target + ">" + (move.houseIndex ?? -1);
       if (lastKey === reverseKey) {
         aiMoveHistory.length = 0;
         return null;
@@ -211,23 +222,29 @@ export function getAIMove(ai, human, foundations, level) {
 export function applyAIMove(state, move) {
   if (!move) return null;
 
-  const ai = { ...state.ai, houses: state.ai.houses.map(h => [...h]), crapette: [...state.ai.crapette], discard: [...state.ai.discard] };
-  const human = { ...state.human, houses: state.human.houses.map(h => [...h]), crapette: [...state.human.crapette], discard: [...state.human.discard] };
+  // Clonar estado
+  const houses = state.houses.map(h => [...h]);
+  const ai = {
+    ...state.ai,
+    crapette: [...state.ai.crapette],
+    discard: [...state.ai.discard],
+    talon: [...state.ai.talon],
+  };
+  const human = {
+    ...state.human,
+    crapette: [...state.human.crapette],
+    discard: [...state.human.discard],
+  };
   const foundations = { ...state.foundations };
 
-  // allHouses = [...human.houses (0-3), ...ai.houses (4-7)]
-  // houseIndex en move usa indices globales del board
-
-  // Quitar carta de su fuente (human.houses 0-3, ai.houses 4-7)
+  // Quitar carta de su origen
   const removeFromSource = () => {
     if (move.source === "crapette") {
       ai.crapette.pop();
       if (ai.crapette.length > 0)
         ai.crapette[ai.crapette.length - 1] = { ...ai.crapette[ai.crapette.length - 1], faceUp: true };
     } else if (move.source === "house") {
-      const hi = move.houseIndex;
-      if (hi < 4) human.houses[hi].pop();
-      else ai.houses[hi - 4].pop();
+      houses[move.houseIndex].pop();
     } else if (move.source === "discard") {
       ai.discard.pop();
     } else if (move.source === "flipped") {
@@ -235,28 +252,20 @@ export function applyAIMove(state, move) {
     }
   };
 
-  // Colocar carta en casa destino (indice global del board)
-  const placeToHouse = (targetIndex) => {
-    if (targetIndex < 4) human.houses[targetIndex].push({ ...move.card, faceUp: true });
-    else ai.houses[targetIndex - 4].push({ ...move.card, faceUp: true });
-  };
-
-  console.log("[APPLY] move:", move.type, move.card.rank, move.card.suit, "source:", move.source, "houseIndex:", move.houseIndex, "target:", move.target);
   if (move.type === "foundation") {
     removeFromSource();
     foundations[move.target] = [...(foundations[move.target] || []), { ...move.card, faceUp: true }];
   } else if (move.type === "house") {
     removeFromSource();
-    placeToHouse(move.target);
+    houses[move.target].push({ ...move.card, faceUp: true });
   } else if (move.type === "rival_discard") {
     removeFromSource();
     human.discard.push({ ...move.card, faceUp: true });
   } else if (move.type === "rival_crapette") {
     removeFromSource();
     human.crapette.push({ ...move.card, faceUp: true });
-    if (human.crapette.length > 0)
-      human.crapette[human.crapette.length - 1] = { ...human.crapette[human.crapette.length - 1], faceUp: true };
+    human.crapette[human.crapette.length - 1] = { ...human.crapette[human.crapette.length - 1], faceUp: true };
   }
 
-  return { ...state, ai, human, foundations };
+  return { ...state, houses, ai, human, foundations };
 }
