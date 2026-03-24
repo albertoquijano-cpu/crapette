@@ -11,6 +11,7 @@ export function useGameLoop(config) {
   const [history, setHistory] = useState(createHistory());
   const [lastMove, setLastMove] = useState(null);
   const [announcedMove, setAnnouncedMove] = useState(null);
+  const [flyingCard, setFlyingCard] = useState(null); // { card, source, houseIndex, type, target }
   const stateRef = useRef(state);
   const announcedMoveRef = useRef(null);
   stateRef.current = state;
@@ -367,6 +368,9 @@ export function useGameLoop(config) {
         if (!newState) return;
         announcedMoveRef.current = null;
         setAnnouncedMove(null);
+        // Disparar vuelo con el move guardado
+        setFlyingCard({ ...move });
+        setTimeout(() => setFlyingCard(null), 650);
         const winner = checkVictory(newState);
         if (winner) { update({ ...newState, phase: GAME_PHASES.GAME_OVER, winner }, move); return; }
         update({ ...newState, statusMessage: "IA jugando..." }, move);
@@ -457,7 +461,7 @@ export function useGameLoop(config) {
   }, [config]);
 
   return {
-    state, history, lastMove, announcedMove,
+    state, history, lastMove, announcedMove, flyingCard,
     playToFoundation, playToHouse, playToRivalPile,
     flipTalon, discardFlipped,
     runAITurn, declareStop, resetGame,

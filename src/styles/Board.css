@@ -606,3 +606,23 @@
   from { transform: translateX(-50%) translateY(20px); opacity: 0; }
   to   { transform: translateX(-50%) translateY(0); opacity: 1; }
 }
+
+/* Destino iluminado cuando la IA anuncia su jugada */
+.house-slot--highlighted {
+  box-shadow: 0 0 0 4px #4caf50, 0 0 30px rgba(76,175,80,0.8);
+  border-radius: 8px;
+  background: rgba(76,175,80,0.15);
+  animation: pulseGreen 0.8s ease-in-out infinite alternate;
+}
+
+.pile-zone__item--highlighted {
+  box-shadow: 0 0 0 4px #4caf50, 0 0 30px rgba(76,175,80,0.8);
+  border-radius: 8px;
+  background: rgba(76,175,80,0.15);
+  animation: pulseGreen 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes pulseGreen {
+  from { box-shadow: 0 0 0 4px #4caf50, 0 0 15px rgba(76,175,80,0.6); }
+  to   { box-shadow: 0 0 0 6px #4caf50, 0 0 35px rgba(76,175,80,1.0); }
+}
