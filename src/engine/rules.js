@@ -26,7 +26,7 @@ export function canPlayToHouse(card, targetPile) {
 export function canPlayToRivalDiscard(card, rivalPile) {
   if (!card) return false;
   const top = getTopCard(rivalPile);
-  if (!top) return false;
+  if (!top) return true; // pila vacia acepta cualquier carta
   return (card.suit === top.suit &&
     (card.value === top.value + 1 || card.value === top.value - 1));
 }

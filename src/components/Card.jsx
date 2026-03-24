@@ -10,7 +10,7 @@ const SUIT_SYMBOLS = {
   clubs:    "♣",
 };
 
-export function Card({ card, onClick, draggable = false, onDragStart, selected = false, small = false }) {
+export function Card({ card, onClick, draggable = false, onDragStart, selected = false, small = false, lifted = false }) {
   const [flipped, setFlipped] = useState(false);
 
   if (!card) return <div className={"card card--empty"}></div>;
@@ -21,7 +21,7 @@ export function Card({ card, onClick, draggable = false, onDragStart, selected =
   if (!card.faceUp) {
     return (
       <div
-        className={["card", "card--back", small && "card--small"].filter(Boolean).join(" ")}
+        className={["card", "card--back", small && "card--small", lifted && "card--lifted"].filter(Boolean).join(" ")}
         onClick={onClick}
         draggable={draggable}
         onDragStart={onDragStart}
@@ -38,6 +38,8 @@ export function Card({ card, onClick, draggable = false, onDragStart, selected =
         isRed ? "card--red" : "card--black",
         selected && "card--selected",
         small && "card--small",
+        lifted && "card--lifted",
+        (lifted || selected) && "card--no-appear",
       ].filter(Boolean).join(" ")}
       onClick={onClick}
       draggable={draggable}

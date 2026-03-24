@@ -1,6 +1,6 @@
 // Board.jsx - Logica simplificada, casas neutrales
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Card } from "./Card.jsx";
 import { useGameLoop } from "../hooks/useGameLoop.js";
 import { useStopDetection } from "../hooks/useStopDetection.js";
@@ -12,6 +12,44 @@ const SUIT_SYMBOLS = { spades: "♠", hearts: "♥", diamonds: "♦", clubs: "�
 const SUIT_COLORS  = { spades: "black", hearts: "red", diamonds: "red", clubs: "black" };
 const SUITS = ["spades", "hearts", "diamonds", "clubs"];
 
+// Componente carta voladora — vuela de fromRect a toRect
+function FlyingCard({ card, fromRect, toRect }) {
+  const SUIT_SYMBOLS = { spades: "♠", hearts: "♥", diamonds: "♦", clubs: "♣" };
+  const isRed = card.color === "red";
+  const symbol = SUIT_SYMBOLS[card.suit] || "";
+  const dx = toRect.left - fromRect.left;
+  const dy = toRect.top  - fromRect.top;
+
+  return (
+    <div style={{
+      position: "fixed",
+      left: fromRect.left + "px",
+      top:  fromRect.top  + "px",
+      width: "70px",
+      height: "100px",
+      zIndex: 9999,
+      pointerEvents: "none",
+      animation: "flyCard 0.45s cubic-bezier(0.25,0.46,0.45,0.94) forwards",
+      "--fly-dx": dx + "px",
+      "--fly-dy": dy + "px",
+    }}>
+      <div style={{
+        width: "70px", height: "100px",
+        borderRadius: "7px",
+        border: "1.5px solid rgba(0,0,0,0.2)",
+        background: "white",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: "1.8em",
+        color: isRed ? "#c0392b" : "#1a1a1a",
+        boxShadow: "0 12px 30px rgba(0,0,0,0.4)",
+        fontFamily: "Crimson Text, Georgia, serif",
+      }}>
+        {card.rank}{symbol}
+      </div>
+    </div>
+  );
+}
+
 export function Board({ config }) {
   const {
     state, announcedMove,
@@ -20,11 +58,55 @@ export function Board({ config }) {
   } = useGameLoop(config);
 
   const [aiSpeed, setAiSpeed] = useState(config.aiSpeed || 3000);
+  const [flyingCard, setFlyingCard] = useState(null); // { card, fromRect, toSlot }
+  const prevAnnouncedRef = useRef(null);
   const [showStop, setShowStop] = useState(false);
   const [stopTriggered, setStopTriggered] = useState(false);
   const [selected, setSelected] = useState(null);
 
   useAI(state.phase, aiSpeed, runAITurn);
+
+  // Ref para guardar fromRect cuando announcedMove se SETEA (antes de que el DOM cambie)
+  const flyFromRectRef = useRef(null);
+
+  // Detectar cuando announcedMove se SETEA → capturar posicion origen
+  useEffect(() => {
+    if (announcedMove) {
+      // Carta anunciada — capturar posicion origen ahora (antes de que se mueva)
+      const sourceSlot = announcedMove.source === "crapette" ? "crapette-ai"
+        : announcedMove.source === "flipped" ? "flipped-ai"
+        : announcedMove.source === "house" ? "house-" + announcedMove.houseIndex
+        : null;
+      if (sourceSlot) {
+        const fromEl = document.querySelector('[data-slot="' + sourceSlot + '"]');
+        if (fromEl) flyFromRectRef.current = fromEl.getBoundingClientRect();
+      }
+    }
+  }, [announcedMove]);
+
+  // Detectar cuando announcedMove se limpia → iniciar vuelo con fromRect guardado
+  useEffect(() => {
+    const prev = prevAnnouncedRef.current;
+    prevAnnouncedRef.current = announcedMove;
+
+    if (prev && !announcedMove && flyFromRectRef.current) {
+      const targetSlot = prev.type === "foundation" ? "foundation-" + prev.target
+        : prev.type === "rival_crapette" ? "crapette-human"
+        : prev.type === "rival_discard" ? "discard-human"
+        : prev.type === "house" ? "house-" + prev.target
+        : null;
+
+      if (targetSlot) {
+        const toEl = document.querySelector('[data-slot="' + targetSlot + '"]');
+        if (toEl) {
+          const toRect = toEl.getBoundingClientRect();
+          setFlyingCard({ card: prev.card, fromRect: flyFromRectRef.current, toRect });
+          flyFromRectRef.current = null;
+          setTimeout(() => setFlyingCard(null), 500);
+        }
+      }
+    }
+  }, [announcedMove]);
   useStopDetection(state.phase, declareStop);
 
   // Mostrar STOP cuando stopValid se activa
@@ -40,6 +122,14 @@ export function Board({ config }) {
   // showStop se activa desde select() cuando el humano toca carta incorrecta
 
   const isHumanTurn = state.currentPlayer === "human";
+
+  // Detectar si una carta es la que la IA acaba de "levantar" (paso 1 animacion)
+  const isLifted = (card, source, houseIndex) => {
+    if (!announcedMove) return false;
+    if (announcedMove.card.id !== card.id) return false;
+    if (source && announcedMove.source !== source) return false;
+    return true;
+  };
 
   // Verificar si hay jugadas obligatorias y la carta seleccionada no es una de ellas
   const checkStopOnSelect = (card, source) => {
@@ -133,6 +223,7 @@ export function Board({ config }) {
 
     return (
       <div key={houseIndex} className="house-slot"
+        data-slot={"house-" + houseIndex}
         style={{ width: stackWidth + "px" }}
         onClick={() => !top && moveToHouse(houseIndex)}>
         {pile.length === 0 ? (
@@ -156,6 +247,7 @@ export function Board({ config }) {
                   <Card
                     card={card}
                     selected={isTopSelected && isTop}
+                    lifted={isTop && isLifted(card, "house", houseIndex)}
                     onClick={isTop ? () => onHouseCardClick(card, houseIndex) : undefined}
                   />
                 </div>
@@ -198,9 +290,10 @@ export function Board({ config }) {
         <div className="pile-zone__item">
           <div className="pile-zone__label">Talon ({ps.talon.length})</div>
           {ps.flippedCard ? (
-            <div className="pile-zone__flipped">
+            <div className="pile-zone__flipped" data-slot={"flipped-" + owner}>
               <Card card={ps.flippedCard}
                 selected={selected?.source === "flipped" && isHuman}
+                lifted={!isHuman && isLifted(ps.flippedCard, "flipped")}
                 onClick={isHuman ? () => select(ps.flippedCard, "flipped", null) : undefined} />
               {isHuman && (
                 <div className="pile-zone__rebuild-small" onClick={discardFlipped}>
@@ -220,6 +313,7 @@ export function Board({ config }) {
 
         {/* Descarte */}
         <div className="pile-zone__item"
+          data-slot={"discard-" + owner}
           onClick={!isHuman && selected ? () => moveToRivalPile("discard", ps.discard) : undefined}>
           <div className="pile-zone__label">Descarte ({ps.discard.length})</div>
           {discardTop ? (
@@ -237,11 +331,13 @@ export function Board({ config }) {
 
         {/* Crapette */}
         <div className={"pile-zone__item" + (isHuman && state.crapetteUsedThisTurn ? " pile-zone__locked" : "")}
+          data-slot={"crapette-" + owner}
           onClick={!isHuman && selected ? () => moveToRivalPile("crapette", ps.crapette) : undefined}>
           <div className="pile-zone__label">Crapette ({ps.crapette.length})</div>
           {crapetteTop ? (
             <Card card={{ ...crapetteTop, faceUp: true }}
               selected={selected?.source === "crapette" && isHuman}
+              lifted={!isHuman && isLifted(crapetteTop, "crapette")}
               onClick={isHuman
                 ? () => select(crapetteTop, "crapette", null)
                 : selected ? () => moveToRivalPile("crapette", ps.crapette) : undefined} />
@@ -294,7 +390,12 @@ export function Board({ config }) {
         {state.stopDeclared && (
           <div className="board__stop-badge">STOP!</div>
         )}
-        {state.phase === "game_over" && (
+        {/* Carta voladora de la IA */}
+      {flyingCard && (
+        <FlyingCard card={flyingCard.card} fromRect={flyingCard.fromRect} toRect={flyingCard.toRect} />
+      )}
+
+      {state.phase === "game_over" && (
           <div className="board__turn-badge" style={{color:"#f5d070", borderColor:"#f5d070"}}>
             {state.winner === "human" ? "Ganaste!" : "Gano la IA"}
           </div>
@@ -346,7 +447,7 @@ export function Board({ config }) {
           </div>
         </div>
 
-        {state.phase === "game_over" && (
+      {state.phase === "game_over" && (
           <div className="board__gameover">
             {state.winner === "human" ? "Ganaste!" : "Gano la IA"}
           </div>

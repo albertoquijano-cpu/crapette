@@ -111,31 +111,40 @@ function getExpertMove(ai, human, foundations) {
     }
   }
 
-  // 5. DESARROLLO: jugar flipped/talon a casas o pilas del rival
+  // 5. DESARROLLO: enviar al rival (crapette primero — mas dañino) desde cualquier fuente
+  // Evaluar todas las fuentes contra ambas pilas del rival
+  const rivalTargets = [
+    { pile: human.crapette, type: "rival_crapette" },
+    { pile: human.discard,  type: "rival_discard"  },
+  ];
+
+  // 5a. flipped al rival
   if (ai.flippedCard) {
-    // Primero al rival si aplica
-    if (canPlayToRivalDiscard(ai.flippedCard, human.crapette)) {
-      return { card: ai.flippedCard, source: "flipped", houseIndex: undefined, type: "rival_crapette" };
+    for (const { pile, type } of rivalTargets) {
+      if (canPlayToRivalDiscard(ai.flippedCard, pile)) {
+        return { card: ai.flippedCard, source: "flipped", houseIndex: undefined, type };
+      }
     }
-    if (canPlayToRivalDiscard(ai.flippedCard, human.discard)) {
-      return { card: ai.flippedCard, source: "flipped", houseIndex: undefined, type: "rival_discard" };
+  }
+
+  // 5b. cartas de casas al rival
+  for (const { pile, type } of rivalTargets) {
+    for (let si = 0; si < allHouses.length; si++) {
+      const card = getTopCard(allHouses[si]);
+      if (!card) continue;
+      if (canPlayToRivalDiscard(card, pile)) {
+        return { card, source: "house", houseIndex: si, type };
+      }
     }
-    // Luego a casas
+  }
+
+  // 5c. flipped a casas (posicional)
+  if (ai.flippedCard) {
     const move = findHouseMove(ai.flippedCard, "flipped", -1, allHouses);
     if (move) return move;
   }
 
-  // 5b. Mover cartas de casas al rival o entre casas (desarrollo posicional)
-  for (let si = 0; si < allHouses.length; si++) {
-    const card = getTopCard(allHouses[si]);
-    if (!card) continue;
-    if (canPlayToRivalDiscard(card, human.crapette)) {
-      return { card, source: "house", houseIndex: si, type: "rival_crapette" };
-    }
-    if (canPlayToRivalDiscard(card, human.discard)) {
-      return { card, source: "house", houseIndex: si, type: "rival_discard" };
-    }
-  }
+  // 5d. mover entre casas (posicional)
   for (let si = 0; si < allHouses.length; si++) {
     const card = getTopCard(allHouses[si]);
     if (!card) continue;
@@ -154,8 +163,9 @@ function getMediumMove(ai, human, foundations) {
   return getExpertMove(ai, human, foundations);
 }
 
-// Ultimo movimiento para evitar loops
-let lastAIMove = null;
+// Historial de movimientos para detectar loops
+const aiMoveHistory = [];
+const HISTORY_SIZE = 6;
 
 export function getAIMove(ai, human, foundations, level) {
   let move;
@@ -166,21 +176,28 @@ export function getAIMove(ai, human, foundations, level) {
     default:       move = getMediumMove(ai, human, foundations);
   }
 
-  // Detectar loop: si el movimiento deshace el anterior, ignorarlo
-  if (move && lastAIMove) {
-    const isLoop = (
-      move.type === "house" &&
-      lastAIMove.type === "house" &&
-      move.card.id === lastAIMove.card.id &&
-      move.target === lastAIMove.houseIndex
-    );
-    if (isLoop) {
-      lastAIMove = null;
-      return null;
-    }
+  if (!move) {
+    aiMoveHistory.length = 0;
+    return null;
   }
 
-  lastAIMove = move;
+  // Detectar loop: la misma carta ha ido y venido entre dos casas
+  if (move.type === "house") {
+    const moveKey = move.card.id + ":" + move.houseIndex + ">" + move.target;
+    // Verificar si esta carta ya recorrio este mismo camino antes
+    const reverseKey = move.card.id + ":" + move.target + ">" + move.houseIndex;
+    const hasLoop = aiMoveHistory.includes(moveKey) || aiMoveHistory.includes(reverseKey);
+    if (hasLoop) {
+      aiMoveHistory.length = 0;
+      return null;
+    }
+    aiMoveHistory.push(moveKey);
+    if (aiMoveHistory.length > HISTORY_SIZE) aiMoveHistory.shift();
+  } else {
+    // Movimiento productivo — resetear historial
+    aiMoveHistory.length = 0;
+  }
+
   return move;
 }
 
@@ -191,14 +208,19 @@ export function applyAIMove(state, move) {
   const human = { ...state.human, houses: state.human.houses.map(h => [...h]), crapette: [...state.human.crapette], discard: [...state.human.discard] };
   const foundations = { ...state.foundations };
 
-  // Quitar carta de la fuente
-  const removeFromAI = () => {
+  // allHouses = [...human.houses (0-3), ...ai.houses (4-7)]
+  // houseIndex en move usa indices globales del board
+
+  // Quitar carta de su fuente (human.houses 0-3, ai.houses 4-7)
+  const removeFromSource = () => {
     if (move.source === "crapette") {
       ai.crapette.pop();
       if (ai.crapette.length > 0)
         ai.crapette[ai.crapette.length - 1] = { ...ai.crapette[ai.crapette.length - 1], faceUp: true };
     } else if (move.source === "house") {
-      ai.houses[move.houseIndex].pop();
+      const hi = move.houseIndex;
+      if (hi < 4) human.houses[hi].pop();
+      else ai.houses[hi - 4].pop();
     } else if (move.source === "discard") {
       ai.discard.pop();
     } else if (move.source === "flipped") {
@@ -206,20 +228,23 @@ export function applyAIMove(state, move) {
     }
   };
 
+  // Colocar carta en casa destino (indice global del board)
+  const placeToHouse = (targetIndex) => {
+    if (targetIndex < 4) human.houses[targetIndex].push({ ...move.card, faceUp: true });
+    else ai.houses[targetIndex - 4].push({ ...move.card, faceUp: true });
+  };
+
   if (move.type === "foundation") {
-    removeFromAI();
+    removeFromSource();
     foundations[move.target] = [...(foundations[move.target] || []), { ...move.card, faceUp: true }];
   } else if (move.type === "house") {
-    removeFromAI();
-    ai.houses[move.target].push({ ...move.card, faceUp: true });
-  } else if (move.type === "human_house") {
-    removeFromAI();
-    human.houses[move.target].push({ ...move.card, faceUp: true });
+    removeFromSource();
+    placeToHouse(move.target);
   } else if (move.type === "rival_discard") {
-    removeFromAI();
+    removeFromSource();
     human.discard.push({ ...move.card, faceUp: true });
   } else if (move.type === "rival_crapette") {
-    removeFromAI();
+    removeFromSource();
     human.crapette.push({ ...move.card, faceUp: true });
     if (human.crapette.length > 0)
       human.crapette[human.crapette.length - 1] = { ...human.crapette[human.crapette.length - 1], faceUp: true };
