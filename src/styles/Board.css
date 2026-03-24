@@ -631,3 +631,42 @@
   box-shadow: 0 0 0 4px #4caf50, 0 0 30px rgba(76,175,80,0.8) !important;
   animation: pulseGreen 0.8s ease-in-out infinite alternate;
 }
+
+/* Boton STOP grande y visible durante turno de la IA */
+.board__btn--stop-big {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #c0392b, #e74c3c);
+  color: white;
+  border: 3px solid #ff6b6b;
+  border-radius: 12px;
+  padding: 14px 28px;
+  font-size: 1.4em;
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  letter-spacing: 3px;
+  cursor: pointer;
+  animation: pulseRed 1s ease-in-out infinite alternate;
+  box-shadow: 0 4px 20px rgba(192,57,43,0.6);
+  min-width: 180px;
+}
+
+.board__btn--stop-big:hover {
+  background: linear-gradient(135deg, #e74c3c, #ff6b6b);
+  transform: scale(1.05);
+}
+
+.board__btn--stop-hint {
+  font-size: 0.45em;
+  letter-spacing: 1px;
+  opacity: 0.85;
+  margin-top: 4px;
+  font-family: 'Crimson Text', serif;
+}
+
+@keyframes pulseRed {
+  from { box-shadow: 0 4px 15px rgba(192,57,43,0.5); }
+  to   { box-shadow: 0 4px 30px rgba(231,76,60,0.9), 0 0 0 4px rgba(231,76,60,0.3); }
+}

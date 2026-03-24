@@ -348,16 +348,25 @@ export function useGameLoop(config) {
 
   // ── Stop automatico (IA detecta que humano toco carta incorrecta) ─────────
   const triggerAutoStop = useCallback(() => {
+    // Mostrar mensaje de stop primero, luego pasar a la IA despues de 2 segundos
     setState(prev => ({
       ...prev,
-      phase: GAME_PHASES.AI_TURN,
-      currentPlayer: "ai",
+      phase: GAME_PHASES.HUMAN_TURN, // mantener fase humano para mostrar mensaje
       stopValid: true,
       stopDeclared: true,
-      stopMessage: "Stop! Tocaste carta incorrecta — la IA continua",
-      statusMessage: "Stop automatico — turno de la IA",
+      stopMessage: "Stop! Tocaste carta incorrecta — la IA toma el turno",
+      statusMessage: "Stop automatico — la IA continua en 2 segundos",
       crapetteUsedThisTurn: false,
     }));
+    setTimeout(() => {
+      setState(prev => ({
+        ...prev,
+        phase: GAME_PHASES.AI_TURN,
+        currentPlayer: "ai",
+        stopMessage: "",
+        statusMessage: "Turno de la IA",
+      }));
+    }, 2000);
   }, []);
 
   // ── Reiniciar ────────────────────────────────────────────────────────────

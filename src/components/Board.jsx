@@ -324,9 +324,17 @@ export function Board({ config, onReset }) {
         <div className={"board__turn-badge" + (state.currentPlayer === "ai" ? " board__turn-badge--ai" : "")}>
           {state.currentPlayer === "human" ? "Tu turno" : "IA jugando"}
         </div>
-        {state.phase === "ai_turn" && (
-          <div style={{fontSize:"0.65em", color:"rgba(255,255,255,0.5)", textAlign:"center", fontFamily:"Cinzel,serif"}}>
-            Presiona tecla = Stop
+        {(state.phase === "ai_turn" || state.phase === "ai_crapette" || state.phase === "ai_talon") && (
+          <div style={{marginTop:"8px", textAlign:"center"}}>
+            <button onClick={declareStop} style={{
+              background:"#c0392b", color:"white", border:"2px solid #ff6b6b",
+              borderRadius:"8px", padding:"10px 20px", fontSize:"1.1em",
+              fontFamily:"Cinzel,serif", fontWeight:"700", cursor:"pointer",
+              display:"block", width:"100%", marginBottom:"6px"
+            }}>✋ STOP</button>
+            <div style={{fontSize:"0.6em", color:"rgba(255,255,255,0.6)", fontFamily:"Cinzel,serif"}}>
+              Oprime cualquier tecla
+            </div>
           </div>
         )}
         {state.phase === "game_over" && (
@@ -353,9 +361,7 @@ export function Board({ config, onReset }) {
           </div>
         )}
         <div className="board__controls-row">
-          {(state.phase === "ai_turn" || state.phase === "ai_crapette" || state.phase === "ai_talon") && (
-            <button className="board__btn board__btn--stop" onClick={declareStop}>✋ STOP</button>
-          )}
+          {/* Boton stop movido al turn indicator */}
           <div className="board__controls">
             <label className="board__ctrl-label">Velocidad IA</label>
             <select className="board__ctrl-select" value={aiSpeed} onChange={e => setAiSpeed(Number(e.target.value))}>
