@@ -181,12 +181,15 @@ export function getAIMove(ai, human, foundations, level) {
     return null;
   }
 
-  // Detectar loop: la misma carta ha ido y venido entre dos casas
+  // Detectar loop: la misma carta oscilando entre casas
   if (move.type === "house") {
     const moveKey = move.card.id + ":" + move.houseIndex + ">" + move.target;
-    // Verificar si esta carta ya recorrio este mismo camino antes
-    const reverseKey = move.card.id + ":" + move.target + ">" + move.houseIndex;
-    const hasLoop = aiMoveHistory.includes(moveKey) || aiMoveHistory.includes(reverseKey);
+    const reverseKey = move.card.id + ":" + move.target + ">" + (move.houseIndex ?? -1);
+    // Si ya hemos visto este movimiento o su reverso, es loop — parar
+    const hasLoop = aiMoveHistory.some(k =>
+      k === moveKey || k === reverseKey ||
+      k.startsWith(move.card.id + ":") && k.endsWith(">" + move.target)
+    );
     if (hasLoop) {
       aiMoveHistory.length = 0;
       return null;
@@ -194,7 +197,7 @@ export function getAIMove(ai, human, foundations, level) {
     aiMoveHistory.push(moveKey);
     if (aiMoveHistory.length > HISTORY_SIZE) aiMoveHistory.shift();
   } else {
-    // Movimiento productivo — resetear historial
+    // Movimiento productivo (fundacion, rival, etc) — resetear historial
     aiMoveHistory.length = 0;
   }
 
@@ -234,6 +237,7 @@ export function applyAIMove(state, move) {
     else ai.houses[targetIndex - 4].push({ ...move.card, faceUp: true });
   };
 
+  console.log("[APPLY] move:", move.type, move.card.rank, move.card.suit, "source:", move.source, "houseIndex:", move.houseIndex, "target:", move.target);
   if (move.type === "foundation") {
     removeFromSource();
     foundations[move.target] = [...(foundations[move.target] || []), { ...move.card, faceUp: true }];

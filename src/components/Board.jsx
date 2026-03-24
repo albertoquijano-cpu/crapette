@@ -3,9 +3,10 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Card } from "./Card.jsx";
 import { useGameLoop } from "../hooks/useGameLoop.js";
+import { GAME_PHASES } from "../engine/gameState.js";
 import { useStopDetection } from "../hooks/useStopDetection.js";
 import { useAI } from "../hooks/useAI.js";
-import { canPlayToFoundation, hasObligatoryMoves, isMoveContributingToObligation } from "../engine/rules.js";
+import { canPlayToFoundation, hasObligatoryMoves, getMandatoryMoves, isMoveContributingToObligation } from "../engine/rules.js";
 import "../styles/Board.css";
 
 const SUIT_SYMBOLS = { spades: "♠", hearts: "♥", diamonds: "♦", clubs: "♣" };
@@ -52,9 +53,9 @@ function FlyingCard({ card, fromRect, toRect }) {
 
 export function Board({ config }) {
   const {
-    state, announcedMove,
+    state, announcedMove, flyingCard: flyingCardMove,
     playToFoundation, playToHouse, playToRivalPile, flipTalon, discardFlipped,
-    runAITurn, declareStop, resetGame,
+    runAITurn, declareStop, triggerAutoStop, resetGame,
   } = useGameLoop(config);
 
   const [aiSpeed, setAiSpeed] = useState(config.aiSpeed || 3000);
@@ -142,7 +143,10 @@ export function Board({ config }) {
 
   // Verificar si hay jugadas obligatorias y la carta seleccionada no es una de ellas
   const checkStopOnSelect = (card, source) => {
-    const mandatory = state.mandatoryMoves;
+    // Calcular jugadas obligatorias en tiempo real para no depender del estado guardado
+    const allHouses = [...state.human.houses, ...state.ai.houses];
+    const canUseCrapette = !state.crapetteUsedThisTurn;
+    const mandatory = getMandatoryMoves(state.human, allHouses, state.foundations, canUseCrapette);
     if (!mandatory || mandatory.length === 0) return false;
 
     // Si hay obligatoria de fundacion y esta carta no es la obligatoria
@@ -162,9 +166,13 @@ export function Board({ config }) {
   // Seleccionar o deseleccionar carta
   const select = (card, source, houseIndex) => {
     if (!isHumanTurn) return;
-    // Verificar stop antes de seleccionar
+    // Si hay jugada obligatoria y esta carta no es la obligatoria:
+    // la IA declara stop automatico — el humano pierde el turno
     if (checkStopOnSelect(card, source)) {
-      declareStop();
+      // Stop automatico: humano toco carta incorrecta con jugada obligatoria pendiente
+      // La IA declara stop — el humano pierde el turno
+      triggerAutoStop();
+      setSelected(null);
       return;
     }
     if (selected && selected.card.id === card.id) {
@@ -274,9 +282,11 @@ export function Board({ config }) {
     const key = suit + "_" + owner;
     const pile = state.foundations[key];
     const top = pile.length > 0 ? pile[pile.length - 1] : null;
+    const isFoundationHighlighted = highlightedSlot === "foundation-" + key;
     return (
       <div key={key}
-        className={"foundation-slot foundation-slot--" + SUIT_COLORS[suit]}
+        data-slot={"foundation-" + key}
+        className={"foundation-slot foundation-slot--" + SUIT_COLORS[suit] + (isFoundationHighlighted ? " foundation-slot--highlighted" : "")}
         onClick={moveToFoundation}>
         {top
           ? <Card card={top} />

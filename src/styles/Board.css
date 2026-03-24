@@ -626,3 +626,8 @@
   from { box-shadow: 0 0 0 4px #4caf50, 0 0 15px rgba(76,175,80,0.6); }
   to   { box-shadow: 0 0 0 6px #4caf50, 0 0 35px rgba(76,175,80,1.0); }
 }
+
+.foundation-slot--highlighted {
+  box-shadow: 0 0 0 4px #4caf50, 0 0 30px rgba(76,175,80,0.8) !important;
+  animation: pulseGreen 0.8s ease-in-out infinite alternate;
+}

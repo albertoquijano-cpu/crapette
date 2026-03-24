@@ -103,6 +103,12 @@ export function useGameLoop(config) {
     const canUseCrapette = !ns.crapetteUsedThisTurn;
     ns.mandatoryMoves = calcMandatory(ns, "human", canUseCrapette);
     ns.statusMessage = card.rank + " a fundacion";
+    // Limpiar stop si ya no hay jugadas obligatorias pendientes
+    if (ns.mandatoryMoves.length === 0) {
+      ns.stopDeclared = false;
+      ns.stopValid = null;
+      ns.stopMessage = "";
+    }
 
     const winner = checkVictory(ns);
     if (winner) { update({ ...ns, phase: GAME_PHASES.GAME_OVER, winner }, { type: "foundation", card }); return; }
@@ -155,6 +161,11 @@ export function useGameLoop(config) {
     const canUseCrapette = !ns.crapetteUsedThisTurn;
     ns.mandatoryMoves = calcMandatory(ns, "human", canUseCrapette);
     ns.statusMessage = "Carta movida";
+    if (ns.mandatoryMoves.length === 0) {
+      ns.stopDeclared = false;
+      ns.stopValid = null;
+      ns.stopMessage = "";
+    }
     update(ns, { type: "house", card, source });
   }, [update]);
 
@@ -413,44 +424,63 @@ export function useGameLoop(config) {
     update({ ...ns, statusMessage: "IA jugando..." }, { type: "flip", card, player: "ai" });
   }, [update]);
 
-  // ── Declarar Stop ────────────────────────────────────────────────────────
+  // ── Declarar Stop (humano presiona tecla durante turno de la IA) ──────────
+  // Flujo correcto:
+  // 1. Si la IA omitio jugada obligatoria → Stop valido
+  //    - El humano hace la jugada obligatoria que detecto y SIGUE jugando
+  //    - Si el humano NO hace jugada obligatoria despues → recibe 3 cartas de castigo
+  // 2. Si la IA no omitio nada → Stop invalido → humano recibe 3 cartas de castigo
   const declareStop = useCallback(() => {
     const s = stateRef.current;
     if (!AI_PHASES.includes(s.phase) && s.phase !== GAME_PHASES.AI_TURN) return;
 
-    // Verificar si hay jugadas obligatorias que la IA omitio
     const aiMandatory = getMandatoryMoves(
-      s.ai,
-      getAllHouses(s),
-      s.foundations,
-      !s.crapetteUsedThisTurn,
-      "ai"
+      s.ai, getAllHouses(s), s.foundations, !s.crapetteUsedThisTurn, "ai"
     );
 
     if (aiMandatory.length > 0) {
-      // Stop valido
+      // Stop valido — el humano detectó jugada obligatoria omitida por la IA
+      // El humano continua jugando (HUMAN_TURN) y debe hacer una jugada obligatoria
+      // Si no lo hace, recibirá castigo (verificado en playToFoundation/playToHouse)
       setState(prev => ({
         ...prev,
         phase: GAME_PHASES.HUMAN_TURN,
         currentPlayer: "human",
         stopValid: true,
-        stopMessage: "Stop valido: " + aiMandatory[0].reason,
+        stopDeclared: true,
+        stopMessage: "Stop valido — haz la jugada obligatoria",
+        crapetteUsedThisTurn: false,
         mandatoryMoves: getMandatoryMoves(prev.human, getAllHouses(prev), prev.foundations, true),
-        statusMessage: "Stop valido — tu turno",
+        statusMessage: "Stop valido — tu turno, haz una jugada obligatoria",
       }));
     } else {
-      // Stop invalido — penalizacion al humano
+      // Stop invalido — el humano se equivoco, recibe 3 cartas de castigo
       setState(prev => {
-        const human = applyStopPenalty(prev.human);
+        const newHuman = applyStopPenalty(prev.human);
         return {
           ...prev,
-          human,
+          human: newHuman,
           stopValid: false,
-          stopMessage: "Stop invalido — penalizacion aplicada",
+          stopDeclared: false,
+          stopMessage: "Stop invalido — 3 cartas de castigo",
           statusMessage: "Stop invalido — continua la IA",
         };
       });
     }
+  }, []);
+
+  // ── Stop automatico (IA detecta que humano toco carta incorrecta) ──────────
+  const triggerAutoStop = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      phase: GAME_PHASES.AI_TURN,
+      currentPlayer: "ai",
+      stopValid: true,
+      stopDeclared: true,
+      stopMessage: "Stop! Tocaste carta incorrecta — la IA continua",
+      statusMessage: "Stop automatico — turno de la IA",
+      crapetteUsedThisTurn: false,
+    }));
   }, []);
 
   // ── Reiniciar ────────────────────────────────────────────────────────────
@@ -461,7 +491,7 @@ export function useGameLoop(config) {
   }, [config]);
 
   return {
-    state, history, lastMove, announcedMove, flyingCard,
+    state, history, lastMove, announcedMove, flyingCard, triggerAutoStop,
     playToFoundation, playToHouse, playToRivalPile,
     flipTalon, discardFlipped,
     runAITurn, declareStop, resetGame,

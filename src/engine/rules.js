@@ -32,7 +32,8 @@ export function canPlayToRivalDiscard(card, rivalPile) {
 }
 
 // Obtener cartas jugables del jugador activo
-export function getPlayableCards(playerState, canUseDiscard, canUseCrapette) {
+// allHouses: todas las casas del tablero (human.houses + ai.houses, indices 0-7)
+export function getPlayableCards(playerState, canUseDiscard, canUseCrapette, allHouses = null) {
   const cards = [];
 
   // Crapette (solo si aun puede usarlo este turno)
@@ -46,8 +47,9 @@ export function getPlayableCards(playerState, canUseDiscard, canUseCrapette) {
     cards.push({ card: playerState.flippedCard, source: "flipped" });
   }
 
-  // Cartas superiores de casas
-  playerState.houses.forEach((house, i) => {
+  // Cartas superiores de TODAS las casas del tablero
+  const houses = allHouses || playerState.houses;
+  houses.forEach((house, i) => {
     const top = getTopCard(house);
     if (top) cards.push({ card: top, source: "house", houseIndex: i });
   });
@@ -65,7 +67,8 @@ export function getPlayableCards(playerState, canUseDiscard, canUseCrapette) {
 export function getMandatoryMoves(playerState, allHouses, foundations, canUseCrapette, player = "human") {
   const mandatory = [];
   const canUseDiscard = playerState.crapette.length === 0;
-  const playable = getPlayableCards(playerState, canUseDiscard, canUseCrapette);
+  // Buscar cartas jugables en TODAS las casas del tablero
+  const playable = getPlayableCards(playerState, canUseDiscard, canUseCrapette, allHouses);
 
   // 1. Cartas que deben ir a fundaciones
   for (const { card, source, houseIndex } of playable) {
@@ -104,8 +107,8 @@ export function getMandatoryMoves(playerState, allHouses, foundations, canUseCra
 
 // ─── Analisis de jugadas obligatorias por nivel ──────────────────────────
 
-// Obtener cartas superficiales jugables
-function getSurfaceCards(playerState, canUseCrapette) {
+// Obtener cartas superficiales jugables (todas las casas del tablero)
+function getSurfaceCards(playerState, canUseCrapette, allHouses = null) {
   const cards = [];
   
   if (canUseCrapette) {
@@ -115,7 +118,8 @@ function getSurfaceCards(playerState, canUseCrapette) {
   if (playerState.flippedCard) {
     cards.push({ card: playerState.flippedCard, source: "flipped" });
   }
-  playerState.houses.forEach((house, i) => {
+  const houses = allHouses || playerState.houses;
+  houses.forEach((house, i) => {
     const top = getTopCard(house);
     if (top) cards.push({ card: top, source: "house", houseIndex: i });
   });
@@ -127,8 +131,8 @@ function getSurfaceCards(playerState, canUseCrapette) {
 }
 
 // Nivel Basico: solo cartas en superficie que van a fundaciones o crapette a casa vacia
-export function hasObligatoryMovesBasic(playerState, foundations, canUseCrapette) {
-  const surface = getSurfaceCards(playerState, canUseCrapette);
+export function hasObligatoryMovesBasic(playerState, foundations, canUseCrapette, allHouses = null) {
+  const surface = getSurfaceCards(playerState, canUseCrapette, allHouses);
   
   // Prioridad 1: As o carta a fundacion en superficie
   for (const { card } of surface) {
@@ -214,7 +218,7 @@ export function hasObligatoryMoves(playerState, allPlayerHouses, foundations, ca
   switch(level) {
     case "expert": return hasObligatoryMovesExpert(playerState, allHouses, foundations, canUseCrapette);
     case "medium": return hasObligatoryMovesMedium(playerState, allHouses, foundations, canUseCrapette);
-    default: return hasObligatoryMovesBasic(playerState, foundations, canUseCrapette);
+    default: return hasObligatoryMovesBasic(playerState, foundations, canUseCrapette, allHouses);
   }
 }
 
