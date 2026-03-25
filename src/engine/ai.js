@@ -38,6 +38,33 @@ function findHouseMove(card, source, fromIndex, houses, visited = []) {
   return null;
 }
 
+// Mover carta de casa a casa SOLO si tiene proposito:
+// 1. Destino es casa vacia (crea espacio)
+// 2. Destapa carta que puede ir a fundacion
+function findPurposefulHouseMove(fromIndex, houses, foundations) {
+  const card = getTopCard(houses[fromIndex]);
+  if (!card) return null;
+
+  for (let ti = 0; ti < houses.length; ti++) {
+    if (ti === fromIndex) continue;
+    if (!canPlayToHouse(card, houses[ti])) continue;
+
+    // Proposito 1: casa destino vacia
+    if (houses[ti].length === 0) {
+      return { card, source: "house", houseIndex: fromIndex, type: "house", target: ti };
+    }
+
+    // Proposito 2: destapa carta que puede ir a fundacion
+    if (houses[fromIndex].length >= 2) {
+      const buried = houses[fromIndex][houses[fromIndex].length - 2];
+      if (canPlayToFoundation(buried, foundations)) {
+        return { card, source: "house", houseIndex: fromIndex, type: "house", target: ti };
+      }
+    }
+  }
+  return null;
+}
+
 // Buscar movimiento que desentierr carta util hasta maxDepth niveles de profundidad
 // maxDepth=1: solo 1 carta encima, maxDepth=Infinity: cualquier profundidad
 function findUncoverMove(houses, foundations, human, maxDepth = 1) {
@@ -101,13 +128,14 @@ function getExpertMove(ai, human, houses, foundations, moveHistory) {
     }
   }
 
-  // 4. Vaciar crapette: jugar crapette a casas o rival
+  // 4. Vaciar crapette: casa vacia primero, luego rival
   const crapetteTop = getTopCard(ai.crapette);
   if (crapetteTop) {
     const cCard = { ...crapetteTop, faceUp: true };
-    const visited = visitedFor(cCard.id, -1);
-    const move = findHouseMove(cCard, "crapette", -1, houses, visited);
-    if (move) return move;
+    const emptyTarget = houses.findIndex(h => h.length === 0);
+    if (emptyTarget >= 0) {
+      return { card: cCard, source: "crapette", houseIndex: undefined, type: "house", target: emptyTarget };
+    }
     if (canPlayToRivalCrapette(cCard, human.crapette)) return { card: cCard, source: "crapette", type: "rival_crapette" };
     if (canPlayToRivalDiscard(cCard, human.discard)) return { card: cCard, source: "crapette", type: "rival_discard" };
   }
@@ -137,11 +165,9 @@ function getExpertMove(ai, human, houses, foundations, moveHistory) {
     }
   }
 
-  // 7. Mover cartas entre casas para crear espacios (sin simulacion para evitar bugs)
+  // 7. Mover cartas entre casas SOLO con proposito (vaciar casa o destapar para fundacion)
   for (let si = 0; si < houses.length; si++) {
-    const card = getTopCard(houses[si]);
-    if (!card) continue;
-    const move = findHouseMove(card, "house", si, houses, []);
+    const move = findPurposefulHouseMove(si, houses, foundations);
     if (move) return move;
   }
 
@@ -169,17 +195,19 @@ function getMediumMove(ai, human, houses, foundations, moveHistory) {
     if (ai.flippedCard) return { card: ai.flippedCard, source: "flipped", houseIndex: undefined, type: "house", target: emptyIdx };
   }
 
-  // 4. Jugar crapette a casas
+  // 4. Jugar crapette — solo a casa vacia (prioridad maxima para vaciar crapette)
   const crapetteTop = getTopCard(ai.crapette);
   if (crapetteTop) {
     const cCard = { ...crapetteTop, faceUp: true };
-    const move = findHouseMove(cCard, "crapette", -1, houses, []);
-    if (move) return move;
+    const emptyTarget = houses.findIndex(h => h.length === 0);
+    if (emptyTarget >= 0) {
+      return { card: cCard, source: "crapette", houseIndex: undefined, type: "house", target: emptyTarget };
+    }
   }
 
-  // 5. Jugar flipped a casas
-  if (ai.flippedCard) {
-    const move = findHouseMove(ai.flippedCard, "flipped", -1, houses, []);
+  // 5. Mover cartas entre casas con proposito
+  for (let si = 0; si < houses.length; si++) {
+    const move = findPurposefulHouseMove(si, houses, foundations);
     if (move) return move;
   }
 
