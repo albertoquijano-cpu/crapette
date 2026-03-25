@@ -99,6 +99,7 @@ export function useGameLoop(config) {
     ns.humanHasPlayed = true;
     removeFromSource(ns, source, houseIndex, "human");
     ns.foundations[fKey] = [...ns.foundations[fKey], { ...card, faceUp: true }];
+    // Nota: crapetteUsedThisTurn solo se activa al voltear el talon, no al jugar crapette
 
     const canUseCrapette = !ns.crapetteUsedThisTurn;
     ns.mandatoryMoves = calcMandatory(ns, "human", canUseCrapette);
@@ -151,7 +152,6 @@ export function useGameLoop(config) {
 
     const ns = cloneState(s);
     ns.humanHasPlayed = true;
-    if (source === "crapette") ns.crapetteUsedThisTurn = true;
     removeFromSource(ns, source, sourceIndex, "human");
     ns.houses[targetIndex].push({ ...card, faceUp: true });
 
@@ -198,7 +198,6 @@ export function useGameLoop(config) {
     }
 
     const ns = cloneState(s);
-    if (source === "crapette") ns.crapetteUsedThisTurn = true;
     removeFromSource(ns, source, sourceIndex, "human");
 
     if (pileType === "discard") ns.ai.discard.push({ ...card, faceUp: true });
