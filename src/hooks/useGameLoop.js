@@ -259,10 +259,6 @@ export function useGameLoop(config) {
     const s = stateRef.current;
     if (!HUMAN_PHASES.includes(s.phase)) return;
     if (!s.human.flippedCard) return;
-    if (s.mandatoryMoves && s.mandatoryMoves.length > 0) {
-      setState(prev => ({ ...prev, statusMessage: "Debes hacer las jugadas obligatorias primero!" }));
-      return;
-    }
 
     const ns = cloneState(s);
     const card = ns.human.flippedCard;
@@ -272,6 +268,23 @@ export function useGameLoop(config) {
     ns.currentPlayer = "ai";
     ns.crapetteUsedThisTurn = false;
     ns.mandatoryMoves = [];
+
+    // Verificar si habia obligatorios pendientes al pasar el turno
+    if (ns.humanHasPlayed) {
+      const pending = getMandatoryMoves(ns.human, ns.houses, ns.foundations, false);
+      if (pending.length > 0) {
+        ns.stopDeclared = true;
+        ns.stopValid = true;
+        ns.stopMessage = "Stop de la IA — pasaste turno con jugadas obligatorias pendientes";
+        ns.statusMessage = "Stop — la IA toma el turno";
+        update(ns, { type: "discard", card });
+        return;
+      }
+    }
+
+    ns.stopDeclared = false;
+    ns.stopValid = null;
+    ns.stopMessage = "";
     ns.statusMessage = "Turno de la IA";
     update(ns, { type: "discard", card });
   }, [update]);
@@ -282,23 +295,7 @@ export function useGameLoop(config) {
     if (!AI_PHASES.includes(s.phase) && s.phase !== GAME_PHASES.AI_TURN) return;
 
     // ── Detectar si el humano ignoró jugadas obligatorias ─────────────────
-    // Solo verificar si el humano ya ha jugado al menos una carta
-    if (s.humanHasPlayed) {
-      const humanMandatory = getMandatoryMoves(s.human, s.houses, s.foundations, !s.crapetteUsedThisTurn);
-      if (humanMandatory.length > 0) {
-        setState(prev => ({
-          ...prev,
-          phase: GAME_PHASES.AI_TURN,
-          currentPlayer: "ai",
-          stopValid: true,
-          stopDeclared: true,
-          stopMessage: "Stop de la IA: " + humanMandatory[0].reason,
-          statusMessage: "Stop valido — la IA toma el turno, el humano pierde su turno",
-          crapetteUsedThisTurn: false,
-        }));
-        return;
-      }
-    }
+    // Obligatorios se verifican en discardFlipped al pasar el turno
 
     const ns = cloneState(s);
     const move = getAIMove(ns.ai, ns.human, ns.houses, ns.foundations, ns.aiLevel);
