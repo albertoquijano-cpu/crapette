@@ -96,6 +96,7 @@ export function useGameLoop(config) {
       }
     }
     const ns = cloneState(s);
+    ns.humanHasPlayed = true;
     removeFromSource(ns, source, houseIndex, "human");
     ns.foundations[fKey] = [...ns.foundations[fKey], { ...card, faceUp: true }];
 
@@ -149,6 +150,7 @@ export function useGameLoop(config) {
     if (!canPlayToHouse(card, s.houses[targetIndex])) return;
 
     const ns = cloneState(s);
+    ns.humanHasPlayed = true;
     if (source === "crapette") ns.crapetteUsedThisTurn = true;
     removeFromSource(ns, source, sourceIndex, "human");
     ns.houses[targetIndex].push({ ...card, faceUp: true });
@@ -280,28 +282,22 @@ export function useGameLoop(config) {
     if (!AI_PHASES.includes(s.phase) && s.phase !== GAME_PHASES.AI_TURN) return;
 
     // ── Detectar si el humano ignoró jugadas obligatorias ─────────────────
-    const humanMandatory = getMandatoryMoves(s.human, s.houses, s.foundations, !s.crapetteUsedThisTurn);
-    if (humanMandatory.length > 0) {
-      setState(prev => ({
-        ...prev,
-        phase: GAME_PHASES.AI_TURN,
-        currentPlayer: "ai",
-        stopValid: true,
-        stopDeclared: true,
-        stopMessage: "Stop de la IA: " + humanMandatory[0].reason,
-        statusMessage: "Stop! La IA declara stop — 3 cartas de castigo al humano",
-      }));
-      // Aplicar castigo al humano (3 cartas del talon al crapette)
-      setState(prev => {
-        const ns = cloneState(prev);
-        for (let i = 0; i < 3; i++) {
-          if (ns.human.talon.length === 0) break;
-          const penaltyCard = { ...ns.human.talon.pop(), faceUp: false };
-          ns.human.crapette.push(penaltyCard);
-        }
-        return { ...ns };
-      });
-      return;
+    // Solo verificar si el humano ya ha jugado al menos una carta
+    if (s.humanHasPlayed) {
+      const humanMandatory = getMandatoryMoves(s.human, s.houses, s.foundations, !s.crapetteUsedThisTurn);
+      if (humanMandatory.length > 0) {
+        setState(prev => ({
+          ...prev,
+          phase: GAME_PHASES.AI_TURN,
+          currentPlayer: "ai",
+          stopValid: true,
+          stopDeclared: true,
+          stopMessage: "Stop de la IA: " + humanMandatory[0].reason,
+          statusMessage: "Stop valido — la IA toma el turno, el humano pierde su turno",
+          crapetteUsedThisTurn: false,
+        }));
+        return;
+      }
     }
 
     const ns = cloneState(s);
