@@ -94,25 +94,7 @@ export function useGameLoop(config) {
     const s = stateRef.current;
     if (!HUMAN_PHASES.includes(s.phase)) return;
 
-    // Verificar jugadas obligatorias
-    const hasObligation = hasObligatoryMoves(s.human, s.houses, s.foundations, !s.crapetteUsedThisTurn, s.aiLevel);
-    if (hasObligation && s.mandatoryMoves && s.mandatoryMoves.length > 0) {
-      const isObligation = s.mandatoryMoves.some(m =>
-        m.card.id === card.id && m.source === source && m.type === "fill_empty_casa"
-      );
-      if (!isObligation) {
-        setState(prev => ({
-          ...prev,
-          stopValid: true,
-          stopMessage: "Stop: " + prev.mandatoryMoves[0].reason,
-          phase: GAME_PHASES.AI_TURN,
-          currentPlayer: "ai",
-          crapetteUsedThisTurn: false,
-          statusMessage: "Stop! La IA ejecutara las jugadas obligatorias",
-        }));
-        return;
-      }
-    }
+    // El jugador puede mover libremente — el rival puede declarar Stop si ignora obligatorias
 
     if (!canPlayToHouse(card, s.houses[targetIndex])) return;
 
@@ -137,23 +119,7 @@ export function useGameLoop(config) {
     const s = stateRef.current;
     if (!HUMAN_PHASES.includes(s.phase)) return;
 
-    // Verificar jugadas obligatorias
-    const hasObligation = hasObligatoryMoves(s.human, s.houses, s.foundations, !s.crapetteUsedThisTurn, s.aiLevel);
-    if (hasObligation && s.mandatoryMoves && s.mandatoryMoves.length > 0) {
-      const isObligation = s.mandatoryMoves.some(m => m.card.id === card.id && m.source === source);
-      if (!isObligation) {
-        setState(prev => ({
-          ...prev,
-          stopValid: true,
-          stopMessage: "Stop: " + prev.mandatoryMoves[0].reason,
-          phase: GAME_PHASES.AI_TURN,
-          currentPlayer: "ai",
-          crapetteUsedThisTurn: false,
-          statusMessage: "Stop! La IA ejecutara las jugadas obligatorias",
-        }));
-        return;
-      }
-    }
+    // El jugador puede mover libremente — el rival puede declarar Stop si ignora obligatorias
 
     const ns = cloneState(s);
     if (source === "crapette") ns.crapetteUsedThisTurn = true;
@@ -176,20 +142,7 @@ export function useGameLoop(config) {
     const s = stateRef.current;
     if (!HUMAN_PHASES.includes(s.phase)) return;
 
-    // Verificar jugadas obligatorias antes de voltear talon
-    const hasObligation = hasObligatoryMoves(s.human, s.houses, s.foundations, !s.crapetteUsedThisTurn, s.aiLevel);
-    if (hasObligation && s.mandatoryMoves && s.mandatoryMoves.length > 0 && !s.human.flippedCard) {
-      setState(prev => ({
-        ...prev,
-        stopValid: true,
-        stopMessage: "Stop: " + prev.mandatoryMoves[0].reason,
-        phase: GAME_PHASES.AI_TURN,
-        currentPlayer: "ai",
-        crapetteUsedThisTurn: false,
-        statusMessage: "Stop! Debes hacer las jugadas obligatorias primero",
-      }));
-      return;
-    }
+    // El jugador puede voltear talon libremente — el rival puede declarar Stop si ignora obligatorias
 
     const ns = cloneState(s);
 
@@ -251,6 +204,31 @@ export function useGameLoop(config) {
   const runAITurn = useCallback(() => {
     const s = stateRef.current;
     if (!AI_PHASES.includes(s.phase) && s.phase !== GAME_PHASES.AI_TURN) return;
+
+    // ── Detectar si el humano ignoró jugadas obligatorias ─────────────────
+    const humanMandatory = getMandatoryMoves(s.human, s.houses, s.foundations, !s.crapetteUsedThisTurn);
+    if (humanMandatory.length > 0) {
+      setState(prev => ({
+        ...prev,
+        phase: GAME_PHASES.AI_TURN,
+        currentPlayer: "ai",
+        stopValid: true,
+        stopDeclared: true,
+        stopMessage: "Stop de la IA: " + humanMandatory[0].reason,
+        statusMessage: "Stop! La IA declara stop — 3 cartas de castigo al humano",
+      }));
+      // Aplicar castigo al humano (3 cartas del talon al crapette)
+      setState(prev => {
+        const ns = cloneState(prev);
+        for (let i = 0; i < 3; i++) {
+          if (ns.human.talon.length === 0) break;
+          const penaltyCard = { ...ns.human.talon.pop(), faceUp: false };
+          ns.human.crapette.push(penaltyCard);
+        }
+        return { ...ns };
+      });
+      return;
+    }
 
     const ns = cloneState(s);
     const move = getAIMove(ns.ai, ns.human, ns.houses, ns.foundations, ns.aiLevel);
