@@ -27,7 +27,7 @@ export function Controls({ state, onSpeedChange, onReset, onReplay }) {
       {/* Indicador turno IA */}
       {isAITurn && (
         <div className="controls__ai-hint">
-          Presiona cualquier tecla para declarar <strong>Stop</strong>
+          Usa el botón <strong>✋ STOP</strong> en el tablero para declarar Stop
         </div>
       )}
 

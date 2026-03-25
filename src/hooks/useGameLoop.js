@@ -286,6 +286,9 @@ export function useGameLoop(config) {
       ns.currentPlayer = "human";
       ns.crapetteUsedThisTurn = false;
       ns.mandatoryMoves = calcMandatory(ns, "human", true);
+      ns.stopDeclared = false;
+      ns.stopValid = null;
+      ns.stopMessage = "";
       ns.statusMessage = "Tu turno";
       update(ns, { type: "discard", card, player: "ai" });
       return;
@@ -302,6 +305,9 @@ export function useGameLoop(config) {
       ns.currentPlayer = "human";
       ns.crapetteUsedThisTurn = false;
       ns.mandatoryMoves = calcMandatory(ns, "human", true);
+      ns.stopDeclared = false;
+      ns.stopValid = null;
+      ns.stopMessage = "";
       ns.statusMessage = "Tu turno";
       update(ns, { type: "pass" });
       return;
