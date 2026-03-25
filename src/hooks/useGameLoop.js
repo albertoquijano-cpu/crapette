@@ -71,6 +71,30 @@ export function useGameLoop(config) {
     const fKey = canPlayToFoundation(card, s.foundations);
     if (!fKey) return;
 
+    // Si hay stop valido pendiente, el primer movimiento DEBE ser el obligatorio
+    if (s.stopDeclared && s.stopValid && s.mandatoryMoves && s.mandatoryMoves.length > 0) {
+      const isObligatory = s.mandatoryMoves.some(m => m.card.id === card.id && m.type === "foundation");
+      if (!isObligatory) {
+        setState(prev => {
+          const ns = cloneState(prev);
+          for (let i = 0; i < 3; i++) {
+            if (ns.human.talon.length === 0) break;
+            ns.human.crapette.push({ ...ns.human.talon.pop(), faceUp: false });
+          }
+          return {
+            ...ns,
+            phase: GAME_PHASES.AI_TURN,
+            currentPlayer: "ai",
+            stopDeclared: false,
+            stopValid: null,
+            stopMessage: "Stop fallido — no hiciste la jugada obligatoria — 3 cartas de castigo",
+            statusMessage: "Stop fallido — turno de la IA",
+            crapetteUsedThisTurn: false,
+          };
+        });
+        return;
+      }
+    }
     const ns = cloneState(s);
     removeFromSource(ns, source, houseIndex, "human");
     ns.foundations[fKey] = [...ns.foundations[fKey], { ...card, faceUp: true }];
@@ -95,6 +119,32 @@ export function useGameLoop(config) {
     if (!HUMAN_PHASES.includes(s.phase)) return;
 
     // El jugador puede mover libremente — el rival puede declarar Stop si ignora obligatorias
+    // Si hay stop valido pendiente, el primer movimiento DEBE ser el obligatorio
+    if (s.stopDeclared && s.stopValid && s.mandatoryMoves && s.mandatoryMoves.length > 0) {
+      const isObligatory = s.mandatoryMoves.some(m =>
+        m.card.id === card.id && (m.type === "house" || m.type === "fill_empty_casa")
+      );
+      if (!isObligatory) {
+        setState(prev => {
+          const ns = cloneState(prev);
+          for (let i = 0; i < 3; i++) {
+            if (ns.human.talon.length === 0) break;
+            ns.human.crapette.push({ ...ns.human.talon.pop(), faceUp: false });
+          }
+          return {
+            ...ns,
+            phase: GAME_PHASES.AI_TURN,
+            currentPlayer: "ai",
+            stopDeclared: false,
+            stopValid: null,
+            stopMessage: "Stop fallido — no hiciste la jugada obligatoria — 3 cartas de castigo",
+            statusMessage: "Stop fallido — turno de la IA",
+            crapetteUsedThisTurn: false,
+          };
+        });
+        return;
+      }
+    }
 
     if (!canPlayToHouse(card, s.houses[targetIndex])) return;
 
@@ -120,6 +170,30 @@ export function useGameLoop(config) {
     if (!HUMAN_PHASES.includes(s.phase)) return;
 
     // El jugador puede mover libremente — el rival puede declarar Stop si ignora obligatorias
+    // Si hay stop valido pendiente, el primer movimiento DEBE ser el obligatorio
+    if (s.stopDeclared && s.stopValid && s.mandatoryMoves && s.mandatoryMoves.length > 0) {
+      const isObligatory = s.mandatoryMoves.some(m => m.card.id === card.id && m.type === "rival");
+      if (!isObligatory) {
+        setState(prev => {
+          const ns = cloneState(prev);
+          for (let i = 0; i < 3; i++) {
+            if (ns.human.talon.length === 0) break;
+            ns.human.crapette.push({ ...ns.human.talon.pop(), faceUp: false });
+          }
+          return {
+            ...ns,
+            phase: GAME_PHASES.AI_TURN,
+            currentPlayer: "ai",
+            stopDeclared: false,
+            stopValid: null,
+            stopMessage: "Stop fallido — no hiciste la jugada obligatoria — 3 cartas de castigo",
+            statusMessage: "Stop fallido — turno de la IA",
+            crapetteUsedThisTurn: false,
+          };
+        });
+        return;
+      }
+    }
 
     const ns = cloneState(s);
     if (source === "crapette") ns.crapetteUsedThisTurn = true;
