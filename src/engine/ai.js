@@ -128,16 +128,21 @@ function getExpertMove(ai, human, houses, foundations, moveHistory) {
     }
   }
 
-  // 4. Vaciar crapette: casa vacia primero, luego rival
+  // 4. Vaciar crapette: casa vacia > rival > cualquier casa valida
   const crapetteTop = getTopCard(ai.crapette);
   if (crapetteTop) {
     const cCard = { ...crapetteTop, faceUp: true };
+    // a. Casa vacia (maxima prioridad)
     const emptyTarget = houses.findIndex(h => h.length === 0);
     if (emptyTarget >= 0) {
       return { card: cCard, source: "crapette", houseIndex: undefined, type: "house", target: emptyTarget };
     }
+    // b. Rival
     if (canPlayToRivalCrapette(cCard, human.crapette)) return { card: cCard, source: "crapette", type: "rival_crapette" };
     if (canPlayToRivalDiscard(cCard, human.discard)) return { card: cCard, source: "crapette", type: "rival_discard" };
+    // c. Cualquier casa ocupada valida
+    const houseMove = findHouseMove(cCard, "crapette", -1, houses, []);
+    if (houseMove) return houseMove;
   }
 
   // 5. Jugar flipped al rival o casas
