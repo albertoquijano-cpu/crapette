@@ -110,6 +110,10 @@ export function Board({ config, onReset }) {
   // Seleccionar carta
   const select = (card, source, houseIndex) => {
     if (!isHumanTurn) return;
+    // Crapette bloqueado si ya se volteo el talon este turno
+    if (source === "crapette" && state.crapetteUsedThisTurn) {
+      return;
+    }
     if (checkStopOnSelect(card, source)) {
       triggerAutoStop();
       setSelected(null);

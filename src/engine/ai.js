@@ -38,19 +38,24 @@ function findHouseMove(card, source, fromIndex, houses, visited = []) {
   return null;
 }
 
-// Buscar movimiento que desentierr carta util (fundacion o envio al rival)
-function findUncoverMove(houses, foundations, human) {
+// Buscar movimiento que desentierr carta util hasta maxDepth niveles de profundidad
+// maxDepth=1: solo 1 carta encima, maxDepth=Infinity: cualquier profundidad
+function findUncoverMove(houses, foundations, human, maxDepth = 1) {
   for (let hi = 0; hi < houses.length; hi++) {
     const house = houses[hi];
     if (house.length < 2) continue;
-    const buried = house[house.length - 2];
-    const goesToFoundation = canPlayToFoundation(buried, foundations);
-    const goesToRivalDiscard = human.discard && canPlayToRivalDiscard(buried, human.discard);
-    const goesToRivalCrapette = human.crapette && canPlayToRivalCrapette(buried, human.crapette);
-    if (!goesToFoundation && !goesToRivalDiscard && !goesToRivalCrapette) continue;
-    const top = house[house.length - 1];
-    const move = findHouseMove(top, "house", hi, houses, []);
-    if (move) return move;
+    // Buscar en cada nivel de profundidad hasta maxDepth
+    for (let depth = 1; depth <= Math.min(maxDepth, house.length - 1); depth++) {
+      const buried = house[house.length - 1 - depth];
+      const goesToFoundation = canPlayToFoundation(buried, foundations);
+      const goesToRivalDiscard = human && human.discard && canPlayToRivalDiscard(buried, human.discard);
+      const goesToRivalCrapette = human && human.crapette && canPlayToRivalCrapette(buried, human.crapette);
+      if (!goesToFoundation && !goesToRivalDiscard && !goesToRivalCrapette) continue;
+      // La carta encima (depth-1 niveles arriba de la enterrada) puede moverse?
+      const top = house[house.length - depth];
+      const move = findHouseMove(top, "house", hi, houses, []);
+      if (move) return move;
+    }
   }
   return null;
 }
@@ -80,9 +85,8 @@ function getExpertMove(ai, human, houses, foundations, moveHistory) {
     if (fKey) return { card, source, houseIndex, type: "foundation", target: fKey };
   }
 
-  // 2. OBLIGATORIO: desenterrar carta que debe ir a fundacion
-  const allVisited = moveHistory.map(k => parseInt(k.split(">")[1])).filter(n => !isNaN(n));
-  const uncover = findUncoverMove(houses, foundations, []);
+  // 2. OBLIGATORIO: desenterrar carta que debe ir a fundacion (cualquier profundidad)
+  const uncover = findUncoverMove(houses, foundations, human, Infinity);
   if (uncover) return uncover;
 
   // 3. OBLIGATORIO: llenar casas vacias con crapette primero
@@ -175,9 +179,41 @@ function getExpertMove(ai, human, houses, foundations, moveHistory) {
 }
 
 function getMediumMove(ai, human, houses, foundations, moveHistory) {
-  const basic = getBasicMove(ai, human, houses, foundations);
-  if (basic) return basic;
-  return getExpertMove(ai, human, houses, foundations, moveHistory);
+  const playable = getAIPlayable(ai, houses);
+
+  // 1. OBLIGATORIO: cartas superficiales a fundaciones (igual que basico)
+  for (const { card, source, houseIndex } of playable) {
+    const fKey = canPlayToFoundation(card, foundations);
+    if (fKey) return { card, source, houseIndex, type: "foundation", target: fKey };
+  }
+
+  // 2. Desenterrar carta util — solo 1 nivel de profundidad
+  const uncover = findUncoverMove(houses, foundations, human, 1);
+  if (uncover) return uncover;
+
+  // 3. Llenar casas vacias con crapette
+  const emptyIdx = houses.findIndex(h => h.length === 0);
+  if (emptyIdx >= 0) {
+    const crapetteTop = getTopCard(ai.crapette);
+    if (crapetteTop) return { card: { ...crapetteTop, faceUp: true }, source: "crapette", houseIndex: undefined, type: "house", target: emptyIdx };
+    if (ai.flippedCard) return { card: ai.flippedCard, source: "flipped", houseIndex: undefined, type: "house", target: emptyIdx };
+  }
+
+  // 4. Jugar crapette a casas
+  const crapetteTop = getTopCard(ai.crapette);
+  if (crapetteTop) {
+    const cCard = { ...crapetteTop, faceUp: true };
+    const move = findHouseMove(cCard, "crapette", -1, houses, []);
+    if (move) return move;
+  }
+
+  // 5. Jugar flipped a casas
+  if (ai.flippedCard) {
+    const move = findHouseMove(ai.flippedCard, "flipped", -1, houses, []);
+    if (move) return move;
+  }
+
+  return null;
 }
 
 // Historial de movimientos para detectar loops
