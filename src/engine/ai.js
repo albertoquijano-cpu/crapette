@@ -137,42 +137,12 @@ function getExpertMove(ai, human, houses, foundations, moveHistory) {
     }
   }
 
-  // 7. Intentar liberar una casa completamente para crear espacio vacio
-  // Buscar la casa mas pequeña cuyas cartas puedan redistribuirse en otras casas
-  // Simular movimientos para ver si se puede vaciar completamente
+  // 7. Mover cartas entre casas para crear espacios (sin simulacion para evitar bugs)
   for (let si = 0; si < houses.length; si++) {
-    if (houses[si].length === 0) continue;
-    // Simular vaciado de esta casa
-    const houseCopy = houses.map(h => [...h]);
-    let canEmpty = true;
-    // Intentar mover cada carta de esta casa a otra (de arriba hacia abajo)
-    const houseToEmpty = [...houseCopy[si]];
-    houseCopy[si] = [];
-    for (let ci = houseToEmpty.length - 1; ci >= 0; ci--) {
-      const card = houseToEmpty[ci];
-      let moved = false;
-      for (let ti = 0; ti < houseCopy.length; ti++) {
-        if (ti === si) continue;
-        if (houseCopy[ti].length === 0) continue; // no crear otro vacio
-        if (canPlayToHouse(card, houseCopy[ti])) {
-          houseCopy[ti] = [...houseCopy[ti], card];
-          moved = true;
-          break;
-        }
-      }
-      if (!moved) { canEmpty = false; break; }
-    }
-    if (canEmpty && houses[si].length > 0) {
-      // Es posible vaciar esta casa — ejecutar el primer movimiento
-      const card = getTopCard(houses[si]);
-      for (let ti = 0; ti < houses.length; ti++) {
-        if (ti === si) continue;
-        if (houses[ti].length === 0) continue;
-        if (canPlayToHouse(card, houses[ti])) {
-          return { card, source: "house", houseIndex: si, type: "house", target: ti };
-        }
-      }
-    }
+    const card = getTopCard(houses[si]);
+    if (!card) continue;
+    const move = findHouseMove(card, "house", si, houses, []);
+    if (move) return move;
   }
 
   return null;
