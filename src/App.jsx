@@ -2,15 +2,22 @@
 
 import { useState } from "react";
 import { Board } from "./components/Board.jsx";
+import { SplashScreen } from "./components/SplashScreen.jsx";
 import { DEFAULT_CONFIG, AI_LEVEL_OPTIONS, VICTORY_MODE_OPTIONS, AI_SPEED_OPTIONS } from "./config/gameConfig.js";
 import "./App.css";
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
   const [gameStarted, setGameStarted] = useState(false);
   const [config, setConfig] = useState(DEFAULT_CONFIG);
 
+  const handleSplashDone = () => setShowSplash(false);
   const handleStart = () => setGameStarted(true);
   const handleReset = () => setGameStarted(false);
+
+  if (showSplash) {
+    return <SplashScreen onStart={handleSplashDone} />;
+  }
 
   if (gameStarted) {
     return <Board config={config} onReset={handleReset} />;
