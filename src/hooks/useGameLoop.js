@@ -163,6 +163,8 @@ export function useGameLoop(config) {
       ns.stopValid = null;
       ns.stopMessage = "";
     }
+    const winnerHouse = checkVictory(ns);
+    if (winnerHouse) { update({ ...ns, phase: GAME_PHASES.GAME_OVER, winner: winnerHouse }, { type: "house", card, source }); return; }
     update(ns, { type: "house", card, source });
   }, [update]);
 
@@ -209,6 +211,8 @@ export function useGameLoop(config) {
     const canUseCrapette = !ns.crapetteUsedThisTurn;
     ns.mandatoryMoves = calcMandatory(ns, "human", canUseCrapette);
     ns.statusMessage = "Carta al rival";
+    const winnerRival = checkVictory(ns);
+    if (winnerRival) { update({ ...ns, phase: GAME_PHASES.GAME_OVER, winner: winnerRival }, { type: pileType, card, source }); return; }
     update(ns, { type: pileType, card, source });
   }, [update]);
 

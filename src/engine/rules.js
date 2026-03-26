@@ -22,11 +22,11 @@ export function canPlayToHouse(card, targetPile) {
   return (card.value === top.value - 1 && card.color !== top.color);
 }
 
-// Descarte rival: pila vacia acepta cualquier carta
+// Descarte rival: pila vacia NO acepta — solo sobre carta existente mismo palo +/-1
 export function canPlayToRivalDiscard(card, rivalPile) {
   if (!card) return false;
   const top = getTopCard(rivalPile);
-  if (!top) return true;
+  if (!top) return false;
   return (card.suit === top.suit &&
     (card.value === top.value + 1 || card.value === top.value - 1));
 }
@@ -86,20 +86,17 @@ export function getMandatoryMoves(playerState, houses, foundations, canUseCrapet
     }
   }
 
-  // 2. Casas vacias que deben llenarse con el crapette
-  if (canUseCrapette && playerState.crapette.length > 0) {
-    const hasEmpty = houses.some(h => h.length === 0);
-    if (hasEmpty) {
-      const crapetteTop = getTopCard(playerState.crapette);
-      if (crapetteTop) {
-        mandatory.push({
-          type: "fill_empty_casa",
-          card: { ...crapetteTop, faceUp: true },
-          source: "crapette",
-          reason: "Hay casas vacias que deben llenarse con el Crapette"
-        });
-      }
-    }
+  // 2. Casas vacias — obligatorio llenarlas con cualquier carta (no solo crapette)
+  // El humano puede usar casas vacias temporalmente para jugadas intermedias
+  // Solo es obligatorio si al final del turno sigue vacia sin haber sido usada
+  const hasEmpty = houses.some(h => h.length === 0);
+  if (hasEmpty) {
+    mandatory.push({
+      type: "fill_empty_casa",
+      card: null,
+      source: null,
+      reason: "Hay casas vacias que deben llenarse"
+    });
   }
 
   return mandatory;

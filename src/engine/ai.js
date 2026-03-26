@@ -116,15 +116,21 @@ function getExpertMove(ai, human, houses, foundations, moveHistory) {
   const uncover = findUncoverMove(houses, foundations, human, Infinity);
   if (uncover) return uncover;
 
-  // 3. OBLIGATORIO: llenar casas vacias con crapette primero
+  // 3. OBLIGATORIO: llenar casas vacias con cualquier carta disponible
   const emptyIdx = houses.findIndex(h => h.length === 0);
   if (emptyIdx >= 0) {
+    // Prioridad: crapette > flipped > carta de casa
     const crapetteTop = getTopCard(ai.crapette);
     if (crapetteTop) {
       return { card: { ...crapetteTop, faceUp: true }, source: "crapette", houseIndex: undefined, type: "house", target: emptyIdx };
     }
     if (ai.flippedCard) {
       return { card: ai.flippedCard, source: "flipped", houseIndex: undefined, type: "house", target: emptyIdx };
+    }
+    for (let si = 0; si < houses.length; si++) {
+      if (si === emptyIdx) continue;
+      const card = getTopCard(houses[si]);
+      if (card) return { card, source: "house", houseIndex: si, type: "house", target: emptyIdx };
     }
   }
 
@@ -192,12 +198,17 @@ function getMediumMove(ai, human, houses, foundations, moveHistory) {
   const uncover = findUncoverMove(houses, foundations, human, 1);
   if (uncover) return uncover;
 
-  // 3. Llenar casas vacias con crapette
+  // 3. OBLIGATORIO: llenar casas vacias con cualquier carta disponible
   const emptyIdx = houses.findIndex(h => h.length === 0);
   if (emptyIdx >= 0) {
     const crapetteTop = getTopCard(ai.crapette);
     if (crapetteTop) return { card: { ...crapetteTop, faceUp: true }, source: "crapette", houseIndex: undefined, type: "house", target: emptyIdx };
     if (ai.flippedCard) return { card: ai.flippedCard, source: "flipped", houseIndex: undefined, type: "house", target: emptyIdx };
+    for (let si = 0; si < houses.length; si++) {
+      if (si === emptyIdx) continue;
+      const card = getTopCard(houses[si]);
+      if (card) return { card, source: "house", houseIndex: si, type: "house", target: emptyIdx };
+    }
   }
 
   // 4. Jugar crapette — solo a casa vacia (prioridad maxima para vaciar crapette)
