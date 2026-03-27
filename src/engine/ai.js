@@ -11,7 +11,7 @@ function getAIPlayable(ai, houses) {
   const crapetteTop = getTopCard(ai.crapette);
   if (crapetteTop) cards.push({ card: { ...crapetteTop, faceUp: true }, source: "crapette" });
 
-  if (ai.flippedCard) cards.push({ card: ai.flippedCard, source: "flipped" });
+  if (ai.flippedCard) cards.push({ card: { ...ai.flippedCard }, source: "flipped" });
 
   houses.forEach((house, i) => {
     const top = getTopCard(house);
@@ -273,17 +273,17 @@ export function applyAIMove(state, move) {
   if (!move) return null;
 
   // Clonar estado
-  const houses = state.houses.map(h => [...h]);
+  const houses = state.houses.map(h => h.map(c => ({ ...c })));
   const ai = {
     ...state.ai,
-    crapette: [...state.ai.crapette],
-    discard: [...state.ai.discard],
-    talon: [...state.ai.talon],
+    crapette: state.ai.crapette.map(c => ({ ...c })),
+    discard: state.ai.discard.map(c => ({ ...c })),
+    talon: state.ai.talon.map(c => ({ ...c })),
   };
   const human = {
     ...state.human,
-    crapette: [...state.human.crapette],
-    discard: [...state.human.discard],
+    crapette: state.human.crapette.map(c => ({ ...c })),
+    discard: state.human.discard.map(c => ({ ...c })),
   };
   const foundations = { ...state.foundations };
 

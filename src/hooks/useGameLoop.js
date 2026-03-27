@@ -23,17 +23,23 @@ export function useGameLoop(config) {
 
   const cloneState = (s) => ({
     ...s,
-    foundations: { ...s.foundations },
-    houses: s.houses.map(h => [...h]),
+    foundations: Object.fromEntries(
+      Object.entries(s.foundations).map(([k, v]) => [k, v.map(c => ({ ...c }))])
+    ),
+    houses: s.houses.map(h => h.map(c => ({ ...c }))),
     human: {
       ...s.human,
-      crapette: [...s.human.crapette],
-      discard: [...s.human.discard],
+      crapette: s.human.crapette.map(c => ({ ...c })),
+      discard: s.human.discard.map(c => ({ ...c })),
+      talon: s.human.talon.map(c => ({ ...c })),
+      flippedCard: s.human.flippedCard ? { ...s.human.flippedCard } : null,
     },
     ai: {
       ...s.ai,
-      crapette: [...s.ai.crapette],
-      discard: [...s.ai.discard],
+      crapette: s.ai.crapette.map(c => ({ ...c })),
+      discard: s.ai.discard.map(c => ({ ...c })),
+      talon: s.ai.talon.map(c => ({ ...c })),
+      flippedCard: s.ai.flippedCard ? { ...s.ai.flippedCard } : null,
     },
   });
 
