@@ -188,3 +188,34 @@
   .setup__card { padding: 24px 16px; }
   .setup__title { font-size: 1.8em; }
 }
+
+.setup__info-btns {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.setup__info-btn {
+  flex: 1;
+  padding: 12px 8px;
+  border-radius: 10px;
+  border: 2px solid #4a7fb5;
+  background: linear-gradient(135deg, rgba(30,60,114,0.6) 0%, rgba(20,40,80,0.4) 100%);
+  color: #7ec8e3;
+  font-family: 'Cinzel', serif;
+  font-size: 0.72em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.setup__info-btn:hover {
+  background: linear-gradient(135deg, rgba(30,60,114,0.85) 0%, rgba(20,40,80,0.6) 100%);
+  border-color: #7ec8e3;
+  color: #fff;
+}
+
+.setup__info-btn:active { transform: scale(0.97); }
