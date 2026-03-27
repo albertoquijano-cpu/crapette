@@ -15,10 +15,52 @@ export function useGameLoop(config) {
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  // Saneamiento radical: eliminar IDs duplicados del estado completo
+  const sanitizeState = (s) => {
+    const seenIds = new Set();
+    const dedup = (arr) => arr.filter(card => {
+      if (!card || !card.id) return true;
+      if (seenIds.has(card.id)) {
+        console.warn("[DEDUP] Carta duplicada eliminada:", card.id);
+        return false;
+      }
+      seenIds.add(card.id);
+      return true;
+    });
+    const dedupCard = (card) => {
+      if (!card || !card.id) return null;
+      if (seenIds.has(card.id)) return null;
+      seenIds.add(card.id);
+      return card;
+    };
+
+    return {
+      ...s,
+      foundations: Object.fromEntries(
+        Object.entries(s.foundations).map(([k, v]) => [k, dedup(v)])
+      ),
+      houses: s.houses.map(h => dedup(h)),
+      human: {
+        ...s.human,
+        crapette: dedup(s.human.crapette),
+        talon: dedup(s.human.talon),
+        discard: dedup(s.human.discard),
+        flippedCard: dedupCard(s.human.flippedCard),
+      },
+      ai: {
+        ...s.ai,
+        crapette: dedup(s.ai.crapette),
+        talon: dedup(s.ai.talon),
+        discard: dedup(s.ai.discard),
+        flippedCard: dedupCard(s.ai.flippedCard),
+      },
+    };
+  };
+
   const update = useCallback((newState, move) => {
     setHistory(h => recordMove(h, move, stateRef.current));
     setLastMove(move);
-    setState(newState);
+    setState(sanitizeState(newState));
   }, []);
 
   const cloneState = (s) => ({
