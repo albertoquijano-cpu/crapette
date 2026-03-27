@@ -133,7 +133,7 @@ function getExpertMove(ai, human, houses, foundations, moveHistory) {
     for (let si = 0; si < houses.length; si++) {
       if (si === emptyIdx) continue;
       const card = getTopCard(houses[si]);
-      if (card) return { card, source: "house", houseIndex: si, type: "house", target: emptyIdx };
+      if (card) return { card: { ...card }, source: "house", houseIndex: si, type: "house", target: emptyIdx };
     }
   }
 
@@ -210,7 +210,7 @@ function getMediumMove(ai, human, houses, foundations, moveHistory) {
     for (let si = 0; si < houses.length; si++) {
       if (si === emptyIdx) continue;
       const card = getTopCard(houses[si]);
-      if (card) return { card, source: "house", houseIndex: si, type: "house", target: emptyIdx };
+      if (card) return { card: { ...card }, source: "house", houseIndex: si, type: "house", target: emptyIdx };
     }
   }
 

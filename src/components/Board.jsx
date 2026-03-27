@@ -101,8 +101,10 @@ export function Board({ config, onReset }) {
       if (!isSameCard) return true;
     }
 
+    // Casa vacia: no bloquear carta del talon (flipped) ni del crapette
+    // El jugador puede usar esas cartas para llenar la casa
     const fillObligation = mandatory.find(m => m.type === "fill_empty_casa");
-    if (fillObligation && source !== "crapette") return true;
+    if (fillObligation && source !== "crapette" && source !== "flipped") return true;
 
     return false;
   };
