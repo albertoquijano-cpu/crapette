@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import { createInitialState, checkVictory, GAME_PHASES, HUMAN_PHASES, AI_PHASES } from "../engine/gameState.js";
 import { canPlayToFoundation, canPlayToHouse, rebuildTalon, getMandatoryMoves, applyStopPenalty, hasObligatoryMoves } from "../engine/rules.js";
-import { getAIMove, applyAIMove } from "../engine/ai.js";
+import { getAIMove, applyAIMove, resetAIHistory } from "../engine/ai.js";
 import { createHistory, recordMove } from "../engine/moveHistory.js";
 
 export function useGameLoop(config) {
@@ -79,8 +79,10 @@ export function useGameLoop(config) {
 
     // Si hay stop valido pendiente, el primer movimiento DEBE ser el obligatorio
     if (s.stopDeclared && s.stopValid && s.mandatoryMoves && s.mandatoryMoves.length > 0) {
+      // Cualquier jugada obligatoria es valida — el orden no importa
+      const hasAnyObligation = s.mandatoryMoves.some(m => m.type === "foundation");
       const isObligatory = s.mandatoryMoves.some(m => m.card.id === card.id && m.type === "foundation");
-      if (!isObligatory) {
+      if (hasAnyObligation && !isObligatory) {
         setState(prev => {
           const ns = cloneState(prev);
           for (let i = 0; i < 3; i++) {
@@ -129,10 +131,12 @@ export function useGameLoop(config) {
     // El jugador puede mover libremente — el rival puede declarar Stop si ignora obligatorias
     // Si hay stop valido pendiente, el primer movimiento DEBE ser el obligatorio
     if (s.stopDeclared && s.stopValid && s.mandatoryMoves && s.mandatoryMoves.length > 0) {
+      // Cualquier jugada obligatoria es valida — el orden no importa
+      const hasAnyObligation = s.mandatoryMoves.some(m => m.type === "house" || m.type === "fill_empty_casa");
       const isObligatory = s.mandatoryMoves.some(m =>
         m.card.id === card.id && (m.type === "house" || m.type === "fill_empty_casa")
       );
-      if (!isObligatory) {
+      if (hasAnyObligation && !isObligatory) {
         setState(prev => {
           const ns = cloneState(prev);
           for (let i = 0; i < 3; i++) {
@@ -182,8 +186,10 @@ export function useGameLoop(config) {
     // El jugador puede mover libremente — el rival puede declarar Stop si ignora obligatorias
     // Si hay stop valido pendiente, el primer movimiento DEBE ser el obligatorio
     if (s.stopDeclared && s.stopValid && s.mandatoryMoves && s.mandatoryMoves.length > 0) {
+      // Cualquier jugada obligatoria es valida — el orden no importa
+      const hasAnyObligation = s.mandatoryMoves.some(m => m.type === "rival");
       const isObligatory = s.mandatoryMoves.some(m => m.card.id === card.id && m.type === "rival");
-      if (!isObligatory) {
+      if (hasAnyObligation && !isObligatory) {
         setState(prev => {
           const ns = cloneState(prev);
           for (let i = 0; i < 3; i++) {
@@ -255,6 +261,8 @@ export function useGameLoop(config) {
     ns.human.flippedCard = card;
     ns.crapetteUsedThisTurn = true;
 
+    // Al voltear talon, solo es obligatorio si la carta va a fundacion
+    // Las casas vacias NO generan stop aqui — el jugador puede llenarlas con esta carta
     const fKey = canPlayToFoundation(card, ns.foundations);
     ns.mandatoryMoves = fKey
       ? [{ type: "foundation", card, source: "flipped", target: fKey, reason: card.rank + " debe ir a la fundacion" }]
@@ -278,13 +286,28 @@ export function useGameLoop(config) {
     ns.crapetteUsedThisTurn = false;
     ns.mandatoryMoves = [];
 
-    // Verificar si habia obligatorios pendientes al pasar el turno
+    // Verificar obligatorios al pasar el turno
     if (ns.humanHasPlayed) {
       const pending = getMandatoryMoves(ns.human, ns.houses, ns.foundations, false);
-      if (pending.length > 0) {
+
+      // 1. Cartas que podian ir directo a fundacion — siempre es stop
+      const foundationPending = pending.filter(m => m.type === "foundation");
+      if (foundationPending.length > 0) {
         ns.stopDeclared = true;
         ns.stopValid = true;
-        ns.stopMessage = "Stop de la IA — pasaste turno con jugadas obligatorias pendientes";
+        ns.stopMessage = "Stop de la IA — " + foundationPending[0].reason;
+        ns.statusMessage = "Stop — la IA toma el turno";
+        update(ns, { type: "discard", card });
+        return;
+      }
+
+      // 2. Casa vacia — solo es stop si el jugador tenia cartas en crapette
+      // (la carta del talon se acaba de descartar, no cuenta como opcion)
+      const emptyPending = pending.filter(m => m.type === "fill_empty_casa");
+      if (emptyPending.length > 0 && ns.human.crapette.length > 0) {
+        ns.stopDeclared = true;
+        ns.stopValid = true;
+        ns.stopMessage = "Stop de la IA — hay casas vacias sin llenar";
         ns.statusMessage = "Stop — la IA toma el turno";
         update(ns, { type: "discard", card });
         return;
@@ -307,6 +330,7 @@ export function useGameLoop(config) {
     // Obligatorios se verifican en discardFlipped al pasar el turno
 
     const ns = cloneState(s);
+    resetAIHistory();
     const move = getAIMove(ns.ai, ns.human, ns.houses, ns.foundations, ns.aiLevel);
 
     if (move) {

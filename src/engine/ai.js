@@ -38,9 +38,10 @@ function findHouseMove(card, source, fromIndex, houses, visited = []) {
   return null;
 }
 
-// Mover carta de casa a casa SOLO si tiene proposito:
+// Mover carta de casa a casa con proposito:
 // 1. Destino es casa vacia (crea espacio)
 // 2. Destapa carta que puede ir a fundacion
+// 3. Cualquier movimiento valido entre casas (reorganizacion util)
 function findPurposefulHouseMove(fromIndex, houses, foundations) {
   const card = getTopCard(houses[fromIndex]);
   if (!card) return null;
@@ -61,6 +62,8 @@ function findPurposefulHouseMove(fromIndex, houses, foundations) {
         return { card, source: "house", houseIndex: fromIndex, type: "house", target: ti };
       }
     }
+
+    // No hay mas propositos — evitar movimientos sin objetivo claro
   }
   return null;
 }
@@ -233,6 +236,10 @@ function getMediumMove(ai, human, houses, foundations, moveHistory) {
 // Historial de movimientos para detectar loops
 const aiMoveHistory = [];
 const HISTORY_SIZE = 8;
+
+export function resetAIHistory() {
+  aiMoveHistory.length = 0;
+}
 
 export function getAIMove(ai, human, houses, foundations, level) {
   let move;

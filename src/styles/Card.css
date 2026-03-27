@@ -5,7 +5,7 @@
   width: 70px;
   height: 100px;
   border-radius: 7px;
-  border: 1.5px solid rgba(0,0,0,0.2);
+  border: 2px solid #333;
   background: var(--card-white);
   box-shadow: 2px 3px 8px var(--card-shadow);
   cursor: pointer;
@@ -16,7 +16,7 @@
   flex-direction: column;
   justify-content: space-between;
   padding: 4px 5px;
-  font-family: 'Crimson Text', Georgia, serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .card:hover {
@@ -49,41 +49,38 @@
 
 .card__corner--top-left {
   top: 4px;
-  left: 5px;
+  left: 4px;
 }
 
 .card__corner--top-right {
-  top: 4px;
-  right: 5px;
-  align-items: flex-end;
+  display: none;
 }
 
 .card__corner--bottom-left {
-  bottom: 4px;
-  left: 5px;
-  transform: rotate(180deg);
+  display: none;
 }
 
 .card__corner--bottom-right {
   bottom: 4px;
-  right: 5px;
+  right: 4px;
   transform: rotate(180deg);
-  align-items: flex-end;
+  align-items: center;
 }
 
 .card__rank {
-  font-size: 1em;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: bold;
   line-height: 1;
+  margin-bottom: 1px;
 }
 
 .card__suit {
-  font-size: 0.75em;
+  font-size: 14px;
   line-height: 1;
 }
 
 .card__center {
-  font-size: 2em;
+  font-size: 36px;
   text-align: center;
   line-height: 1;
   position: absolute;
@@ -92,8 +89,9 @@
   transform: translate(-50%, -50%);
 }
 
-.card--small .card__center { font-size: 1.3em; }
-.card--small .card__rank   { font-size: 0.85em; }
+.card--small .card__center { font-size: 22px; }
+.card--small .card__rank   { font-size: 12px; }
+.card--small .card__suit   { font-size: 10px; }
 
 .card--back {
   background: linear-gradient(135deg, var(--felt-green-dark) 0%, var(--felt-green) 50%, var(--felt-green-dark) 100%);
