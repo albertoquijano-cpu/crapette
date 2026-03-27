@@ -30,7 +30,9 @@ export function SplashScreen({ onStart }) {
       {ready && (
         <div style={{
           position: 'absolute',
-          bottom: '8%',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
           padding: '14px 44px',
           background: 'rgba(0,0,0,0.65)',
           border: '2px solid #c9a84c',
@@ -41,6 +43,7 @@ export function SplashScreen({ onStart }) {
           letterSpacing: '2px',
           textTransform: 'uppercase',
           animation: 'pulse 1.5s infinite',
+          whiteSpace: 'nowrap',
         }}>
           Toca para jugar
         </div>

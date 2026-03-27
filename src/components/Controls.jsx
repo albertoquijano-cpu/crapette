@@ -4,7 +4,7 @@ import "../styles/Controls.css";
 import { AI_SPEED_OPTIONS } from "../config/gameConfig.js";
 import { GAME_PHASES } from "../engine/gameState.js";
 
-export function Controls({ state, onSpeedChange, onReset, onReplay }) {
+export function Controls({ state, onSpeedChange, onReset, onReplay, onDashboard, onExit }) {
   const isAITurn = state.phase === GAME_PHASES.AI_TURN;
   const isHumanTurn = state.phase === GAME_PHASES.HUMAN_TURN;
   const isGameOver = state.phase === GAME_PHASES.GAME_OVER;
@@ -56,6 +56,12 @@ export function Controls({ state, onSpeedChange, onReset, onReplay }) {
           )}
           <button className="controls__btn controls__btn--reset" onClick={onReset}>
             ↺ Nueva partida
+          </button>
+          <button className="controls__btn controls__btn--dashboard" onClick={onDashboard}>
+            ⚙ Dashboard
+          </button>
+          <button className="controls__btn controls__btn--exit" onClick={onExit}>
+            ✕ Salir
           </button>
         </div>
 

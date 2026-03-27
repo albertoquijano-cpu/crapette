@@ -13,7 +13,7 @@ const SUIT_SYMBOLS = { spades: "♠", hearts: "♥", diamonds: "♦", clubs: "�
 const SUIT_COLORS  = { spades: "black", hearts: "red", diamonds: "red", clubs: "black" };
 const SUITS = ["spades", "hearts", "diamonds", "clubs"];
 
-export function Board({ config, onReset }) {
+export function Board({ config, onReset, onDashboard, onExit }) {
   const {
     state, announcedMove, flyingCard: flyingCardMove, triggerAutoStop,
     playToFoundation, playToHouse, playToRivalPile, flipTalon, discardFlipped,
@@ -377,7 +377,9 @@ export function Board({ config, onReset }) {
               <option value={1500}>Rapido</option>
               <option value={500}>Muy rapido</option>
             </select>
-            <button className="board__btn" onClick={resetGame}>Nueva partida</button>
+            <button className="board__btn" onClick={resetGame}>↺ Nueva partida</button>
+            <button className="board__btn board__btn--dashboard" onClick={onDashboard}>⚙ Dashboard</button>
+            <button className="board__btn board__btn--exit" onClick={onExit}>✕ Salir</button>
           </div>
         </div>
         {state.phase === "game_over" && (

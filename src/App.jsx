@@ -38,6 +38,7 @@ const MECANICA = (
     <p>• <strong>Cartas a fundaciones:</strong> cualquier carta disponible que pueda ir a fundación <em>debe</em> enviarse de inmediato. Incluye cartas "enterradas" en casas si pueden extraerse.</p>
     <p>• <strong>Llenar casas vacías:</strong> si hay una casa vacía, debe llenarse antes de continuar.</p>
     <p>⚠️ Con cada jugada hay que volver a verificar si surgen nuevas jugadas obligatorias.</p>
+    <p>👁 <strong>Aviso:</strong> antes de cualquier jugada de la IA se iluminará en un recuadro verde el sitio donde va a jugar la próxima carta — esto te da tiempo para declarar un Stop si ves que esa jugada no va a ser la obligatoria.</p>
     <br/>
     <p><strong>Jugadas Corrientes</strong></p>
     <p>Una vez cumplidos los obligatorios, el jugador puede:</p>
@@ -72,7 +73,14 @@ export default function App() {
   const handleReset = () => setGameStarted(false);
 
   if (showSplash) return <SplashScreen onStart={handleSplashDone} />;
-  if (gameStarted) return <Board config={config} onReset={handleReset} />;
+  if (gameStarted) return (
+    <Board
+      config={config}
+      onReset={handleReset}
+      onDashboard={() => setGameStarted(false)}
+      onExit={() => { setGameStarted(false); setShowSplash(true); }}
+    />
+  );
 
   return (
     <div className="setup">
@@ -90,6 +98,7 @@ export default function App() {
       <div className="setup__card">
         <h1 className="setup__title">BANCA RUSA</h1>
         <p className="setup__subtitle">Crapette</p>
+        <p style={{ textAlign: 'center', color: 'rgba(201,168,76,0.4)', fontSize: '0.65em', letterSpacing: '0.1em', marginTop: '-16px', marginBottom: '8px', fontFamily: 'monospace' }}>v2.7.5</p>
 
         <div className="setup__info-btns">
           <button className="setup__info-btn" onClick={() => setModal('descripcion')}>

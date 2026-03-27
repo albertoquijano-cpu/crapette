@@ -670,3 +670,23 @@
   from { box-shadow: 0 4px 15px rgba(192,57,43,0.5); }
   to   { box-shadow: 0 4px 30px rgba(231,76,60,0.9), 0 0 0 4px rgba(231,76,60,0.3); }
 }
+
+.board__btn--dashboard {
+  border-color: #4a7fb5;
+  color: #7ec8e3;
+}
+
+.board__btn--dashboard:hover {
+  background: rgba(74,127,181,0.2);
+  border-color: #7ec8e3;
+}
+
+.board__btn--exit {
+  border-color: #b54a4a;
+  color: #e37e7e;
+}
+
+.board__btn--exit:hover {
+  background: rgba(181,74,74,0.2);
+  border-color: #e37e7e;
+}
