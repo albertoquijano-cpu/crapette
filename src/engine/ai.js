@@ -39,9 +39,10 @@ function findHouseMove(card, source, fromIndex, houses, visited = []) {
 }
 
 // Mover carta de casa a casa con proposito:
-// 1. Destino es casa vacia (crea espacio)
+// Propositos para mover carta entre casas:
+// 1. El origen tiene 1 carta — moverla crea una casa vacia
 // 2. Destapa carta que puede ir a fundacion
-// 3. Cualquier movimiento valido entre casas (reorganizacion util)
+// 3. El destino es una casa vacia (llenar espacio ya creado)
 function findPurposefulHouseMove(fromIndex, houses, foundations) {
   const card = getTopCard(houses[fromIndex]);
   if (!card) return null;
@@ -50,20 +51,23 @@ function findPurposefulHouseMove(fromIndex, houses, foundations) {
     if (ti === fromIndex) continue;
     if (!canPlayToHouse(card, houses[ti])) continue;
 
-    // Proposito 1: casa destino vacia
-    if (houses[ti].length === 0) {
-      return { card, source: "house", houseIndex: fromIndex, type: "house", target: ti };
+    // Proposito 1: origen tiene 1 carta — moverla crea casa vacia
+    if (houses[fromIndex].length === 1) {
+      return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
     }
 
     // Proposito 2: destapa carta que puede ir a fundacion
     if (houses[fromIndex].length >= 2) {
       const buried = houses[fromIndex][houses[fromIndex].length - 2];
       if (canPlayToFoundation(buried, foundations)) {
-        return { card, source: "house", houseIndex: fromIndex, type: "house", target: ti };
+        return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
       }
     }
 
-    // No hay mas propositos — evitar movimientos sin objetivo claro
+    // Proposito 3: destino es casa vacia — llenar espacio disponible
+    if (houses[ti].length === 0) {
+      return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
+    }
   }
   return null;
 }
