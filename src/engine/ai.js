@@ -40,10 +40,10 @@ function findHouseMove(card, source, fromIndex, houses, visited = []) {
 
 // Mover carta de casa a casa con proposito:
 // Propositos para mover carta entre casas:
-// 1. El origen tiene 1 carta — moverla crea una casa vacia
+// 1. El origen tiene 1 carta — moverla crea una casa vacia (sin ping-pong)
 // 2. Destapa carta que puede ir a fundacion
 // 3. El destino es una casa vacia (llenar espacio ya creado)
-function findPurposefulHouseMove(fromIndex, houses, foundations) {
+function findPurposefulHouseMove(fromIndex, houses, foundations, moveHistory = []) {
   const card = getTopCard(houses[fromIndex]);
   if (!card) return null;
 
@@ -52,8 +52,14 @@ function findPurposefulHouseMove(fromIndex, houses, foundations) {
     if (!canPlayToHouse(card, houses[ti])) continue;
 
     // Proposito 1: origen tiene 1 carta — moverla crea casa vacia
+    // Verificar que no sea ping-pong (la carta no vino de este destino)
     if (houses[fromIndex].length === 1) {
-      return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
+      const reverseKey = (card.id || "?") + ":" + ti + ">" + fromIndex;
+      if (!moveHistory.includes(reverseKey)) {
+        return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
+      }
+      // Si causa ping-pong con este destino, continuar buscando otro destino
+      continue;
     }
 
     // Proposito 2: destapa carta que puede ir a fundacion
@@ -185,7 +191,7 @@ function getExpertMove(ai, human, houses, foundations, moveHistory) {
 
   // 7. Mover cartas entre casas SOLO con proposito (vaciar casa o destapar para fundacion)
   for (let si = 0; si < houses.length; si++) {
-    const move = findPurposefulHouseMove(si, houses, foundations);
+    const move = findPurposefulHouseMove(si, houses, foundations, moveHistory);
     if (move) return move;
   }
 
@@ -230,7 +236,7 @@ function getMediumMove(ai, human, houses, foundations, moveHistory) {
 
   // 5. Mover cartas entre casas con proposito
   for (let si = 0; si < houses.length; si++) {
-    const move = findPurposefulHouseMove(si, houses, foundations);
+    const move = findPurposefulHouseMove(si, houses, foundations, moveHistory);
     if (move) return move;
   }
 
