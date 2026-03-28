@@ -63,6 +63,15 @@ export function useGameLoop(config) {
     setState(sanitizeState(newState));
   }, []);
 
+  // Wrapper para setState que siempre sanitiza
+  const safeSetState = (updater) => {
+    if (typeof updater === 'function') {
+      setState(prev => sanitizeState(updater(prev)));
+    } else {
+      setState(sanitizeState(updater));
+    }
+  };
+
   const cloneState = (s) => ({
     ...s,
     foundations: Object.fromEntries(
@@ -125,7 +134,7 @@ export function useGameLoop(config) {
       const hasAnyObligation = s.mandatoryMoves.some(m => m.type === "foundation");
       const isObligatory = s.mandatoryMoves.some(m => m.card.id === card.id && m.type === "foundation");
       if (hasAnyObligation && !isObligatory) {
-        setState(prev => {
+        safeSetState(prev => {
           const ns = cloneState(prev);
           for (let i = 0; i < 3; i++) {
             if (ns.human.talon.length === 0) break;
@@ -179,7 +188,7 @@ export function useGameLoop(config) {
         m.card.id === card.id && (m.type === "house" || m.type === "fill_empty_casa")
       );
       if (hasAnyObligation && !isObligatory) {
-        setState(prev => {
+        safeSetState(prev => {
           const ns = cloneState(prev);
           for (let i = 0; i < 3; i++) {
             if (ns.human.talon.length === 0) break;
@@ -232,7 +241,7 @@ export function useGameLoop(config) {
       const hasAnyObligation = s.mandatoryMoves.some(m => m.type === "rival");
       const isObligatory = s.mandatoryMoves.some(m => m.card.id === card.id && m.type === "rival");
       if (hasAnyObligation && !isObligatory) {
-        setState(prev => {
+        safeSetState(prev => {
           const ns = cloneState(prev);
           for (let i = 0; i < 3; i++) {
             if (ns.human.talon.length === 0) break;
@@ -372,12 +381,11 @@ export function useGameLoop(config) {
     // Obligatorios se verifican en discardFlipped al pasar el turno
 
     const ns = cloneState(s);
-    resetAIHistory();
     const move = getAIMove(ns.ai, ns.human, ns.houses, ns.foundations, ns.aiLevel);
 
     if (move) {
       setAnnouncedMove(move);
-      setState(prev => ({
+      safeSetState(prev => ({
         ...prev,
         statusMessage: "IA: " + move.card.rank + " de " + move.card.suit,
       }));
@@ -410,6 +418,7 @@ export function useGameLoop(config) {
       ns.stopValid = null;
       ns.stopMessage = "";
       ns.statusMessage = "Tu turno";
+      resetAIHistory(); // Limpiar historial al pasar turno
       update(ns, { type: "discard", card, player: "ai" });
       return;
     }
@@ -446,7 +455,7 @@ export function useGameLoop(config) {
     const aiMandatory = getMandatoryMoves(s.ai, s.houses, s.foundations, !s.crapetteUsedThisTurn);
 
     if (aiMandatory.length > 0) {
-      setState(prev => ({
+      safeSetState(prev => ({
         ...prev,
         phase: GAME_PHASES.HUMAN_TURN,
         currentPlayer: "human",
@@ -458,7 +467,7 @@ export function useGameLoop(config) {
         statusMessage: "Stop valido — tu turno",
       }));
     } else {
-      setState(prev => {
+      safeSetState(prev => {
         const newHuman = applyStopPenalty(prev.human);
         return {
           ...prev,
@@ -475,7 +484,7 @@ export function useGameLoop(config) {
   // ── Stop automatico (IA detecta que humano toco carta incorrecta) ─────────
   const triggerAutoStop = useCallback(() => {
     // Mostrar mensaje de stop primero, luego pasar a la IA despues de 2 segundos
-    setState(prev => ({
+    safeSetState(prev => ({
       ...prev,
       phase: GAME_PHASES.HUMAN_TURN, // mantener fase humano para mostrar mensaje
       stopValid: true,
@@ -485,7 +494,7 @@ export function useGameLoop(config) {
       crapetteUsedThisTurn: false,
     }));
     setTimeout(() => {
-      setState(prev => ({
+      safeSetState(prev => ({
         ...prev,
         phase: GAME_PHASES.AI_TURN,
         currentPlayer: "ai",
