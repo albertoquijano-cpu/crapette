@@ -26,7 +26,7 @@ export function Board({ config, onReset, onDashboard, onExit }) {
   const flyFromRectRef = useRef(null);
   const [flyingCard, setFlyingCard] = useState(null);
 
-  useAI(state.phase, aiSpeed, runAITurn);
+  useAI(state.phase, aiSpeed, runAITurn, state.aiLevel);
   useStopDetection(state.phase, declareStop);
 
   // Mostrar STOP cuando stopValid se activa

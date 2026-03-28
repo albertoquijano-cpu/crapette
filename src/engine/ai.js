@@ -47,19 +47,20 @@ function findPurposefulHouseMove(fromIndex, houses, foundations, moveHistory = [
   const card = getTopCard(houses[fromIndex]);
   if (!card) return null;
 
+  // Ultimo movimiento registrado
+  const lastMove = moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null;
+
   for (let ti = 0; ti < houses.length; ti++) {
     if (ti === fromIndex) continue;
     if (!canPlayToHouse(card, houses[ti])) continue;
 
+    // Regla anti ping-pong: bloquear si este movimiento revierte exactamente el anterior
+    const reverseKey = (card.id || "?") + ":" + ti + ">" + fromIndex;
+    if (lastMove === reverseKey) continue;
+
     // Proposito 1: origen tiene 1 carta — moverla crea casa vacia
-    // Verificar que no sea ping-pong (la carta no vino de este destino)
     if (houses[fromIndex].length === 1) {
-      const reverseKey = (card.id || "?") + ":" + ti + ">" + fromIndex;
-      if (!moveHistory.includes(reverseKey)) {
-        return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
-      }
-      // Si causa ping-pong con este destino, continuar buscando otro destino
-      continue;
+      return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
     }
 
     // Proposito 2: destapa carta que puede ir a fundacion
@@ -74,6 +75,9 @@ function findPurposefulHouseMove(fromIndex, houses, foundations, moveHistory = [
     if (houses[ti].length === 0) {
       return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
     }
+
+    // Proposito 4: cualquier movimiento valido que no revierta el anterior
+    return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
   }
   return null;
 }
