@@ -5,6 +5,7 @@ import { createInitialState, checkVictory, GAME_PHASES, HUMAN_PHASES, AI_PHASES 
 import { canPlayToFoundation, canPlayToHouse, rebuildTalon, getMandatoryMoves, applyStopPenalty, hasObligatoryMoves } from "../engine/rules.js";
 import { getAIMove, applyAIMove, resetAIHistory } from "../engine/ai.js";
 import { createHistory, recordMove } from "../engine/moveHistory.js";
+import { verifyStateIntegrity } from "../engine/deck.js";
 
 export function useGameLoop(config) {
   const [state, setState] = useState(() => createInitialState(config));
@@ -58,6 +59,8 @@ export function useGameLoop(config) {
   };
 
   const update = useCallback((newState, move) => {
+    // Verificar integridad antes de guardar
+    verifyStateIntegrity(newState);
     setHistory(h => recordMove(h, move, stateRef.current));
     setLastMove(move);
     setState(sanitizeState(newState));
@@ -138,7 +141,9 @@ export function useGameLoop(config) {
           const ns = cloneState(prev);
           for (let i = 0; i < 3; i++) {
             if (ns.human.talon.length === 0) break;
-            ns.human.crapette.push({ ...ns.human.talon.pop(), faceUp: false });
+            const penCard = ns.human.talon[ns.human.talon.length - 1];
+            ns.human.talon = ns.human.talon.slice(0, -1);
+            ns.human.crapette.push({ ...penCard, faceUp: false });
           }
           return {
             ...ns,
@@ -192,7 +197,9 @@ export function useGameLoop(config) {
           const ns = cloneState(prev);
           for (let i = 0; i < 3; i++) {
             if (ns.human.talon.length === 0) break;
-            ns.human.crapette.push({ ...ns.human.talon.pop(), faceUp: false });
+            const penCard = ns.human.talon[ns.human.talon.length - 1];
+            ns.human.talon = ns.human.talon.slice(0, -1);
+            ns.human.crapette.push({ ...penCard, faceUp: false });
           }
           return {
             ...ns,
@@ -245,7 +252,9 @@ export function useGameLoop(config) {
           const ns = cloneState(prev);
           for (let i = 0; i < 3; i++) {
             if (ns.human.talon.length === 0) break;
-            ns.human.crapette.push({ ...ns.human.talon.pop(), faceUp: false });
+            const penCard = ns.human.talon[ns.human.talon.length - 1];
+            ns.human.talon = ns.human.talon.slice(0, -1);
+            ns.human.crapette.push({ ...penCard, faceUp: false });
           }
           return {
             ...ns,
@@ -308,8 +317,10 @@ export function useGameLoop(config) {
     }
     if (ns.human.talon.length === 0) return;
 
-    const card = { ...ns.human.talon.pop(), faceUp: true };
-    ns.human.flippedCard = card;
+    const talonCard = ns.human.talon[ns.human.talon.length - 1];
+    ns.human.talon = ns.human.talon.slice(0, -1);
+    const card = { ...talonCard, faceUp: true };
+    ns.human.flippedCard = { ...card };
     ns.crapetteUsedThisTurn = true;
 
     // Al voltear talon, solo es obligatorio si la carta va a fundacion
@@ -384,6 +395,10 @@ export function useGameLoop(config) {
     const move = getAIMove(ns.ai, ns.human, ns.houses, ns.foundations, ns.aiLevel);
 
     if (move) {
+      // Pre-calcular el nuevo estado ahora para evitar desfase temporal
+      const newState = applyAIMove(ns, move);
+      if (!newState) return;
+
       setAnnouncedMove(move);
       safeSetState(prev => ({
         ...prev,
@@ -391,10 +406,6 @@ export function useGameLoop(config) {
       }));
 
       setTimeout(() => {
-        const currentState = stateRef.current;
-        const ns2 = cloneState(currentState);
-        const newState = applyAIMove(ns2, move);
-        if (!newState) return;
         setAnnouncedMove(null);
         setFlyingCard({ ...move });
         setTimeout(() => setFlyingCard(null), 650);
@@ -442,9 +453,11 @@ export function useGameLoop(config) {
       return;
     }
 
-    const card = { ...ns.ai.talon.pop(), faceUp: true };
-    ns.ai.flippedCard = card;
-    update({ ...ns, statusMessage: "IA jugando..." }, { type: "flip", card, player: "ai" });
+    const talonCard = ns.ai.talon[ns.ai.talon.length - 1];
+    ns.ai.talon = ns.ai.talon.slice(0, -1); // nuevo array sin la ultima carta
+    const card = { ...talonCard, faceUp: true };
+    ns.ai.flippedCard = { ...card };
+    update({ ...ns, statusMessage: "IA jugando..." }, { type: "flip", card: { ...card }, player: "ai" });
   }, [update]);
 
   // ── Declarar Stop (humano presiona tecla durante turno IA) ───────────────

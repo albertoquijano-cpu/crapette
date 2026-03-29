@@ -7,12 +7,24 @@ const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
 const RANK_VALUES = { A: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10, J: 11, Q: 12, K: 13 };
 const RED_SUITS = ["hearts", "diamonds"];
 
+// Registro global de cartas — fuente de verdad inmutable
+const CARD_REGISTRY = new Map();
+
+export function getCard(id) {
+  return CARD_REGISTRY.get(id) || null;
+}
+
+export function getAllCardIds() {
+  return Array.from(CARD_REGISTRY.keys());
+}
+
 export function createDeck(ownerId) {
   const deck = [];
   for (const [i, suit] of SUITS.entries()) {
     for (const rank of RANKS) {
-      deck.push({
-        id: `${SUIT_NAMES[i]}_${rank}_${ownerId}`,
+      const id = `${SUIT_NAMES[i]}_${rank}_${ownerId}`;
+      const card = Object.freeze({
+        id,
         suit: SUIT_NAMES[i],
         suitSymbol: suit,
         rank,
@@ -21,9 +33,40 @@ export function createDeck(ownerId) {
         ownerId,
         faceUp: false,
       });
+      CARD_REGISTRY.set(id, card);
+      deck.push({ ...card }); // copia mutable para el estado del juego
     }
   }
   return deck;
+}
+
+// Verificar integridad del estado — exactamente 104 cartas, sin duplicados
+export function verifyStateIntegrity(state) {
+  const seen = new Map();
+  const allPiles = [
+    ...state.houses,
+    Object.values(state.foundations),
+    [state.human.crapette, state.human.talon, state.human.discard, state.human.flippedCard ? [state.human.flippedCard] : []],
+    [state.ai.crapette, state.ai.talon, state.ai.discard, state.ai.flippedCard ? [state.ai.flippedCard] : []],
+  ].flat(3).filter(Boolean);
+
+  let duplicates = [];
+  for (const card of allPiles) {
+    if (!card || !card.id) continue;
+    if (seen.has(card.id)) {
+      duplicates.push(card.id);
+    }
+    seen.set(card.id, true);
+  }
+
+  if (duplicates.length > 0) {
+    console.error("[INTEGRITY] Cartas duplicadas:", duplicates);
+    return false;
+  }
+  if (seen.size !== 104) {
+    console.warn("[INTEGRITY] Total cartas:", seen.size, "(esperado: 104)");
+  }
+  return duplicates.length === 0;
 }
 
 export function shuffleDeck(deck) {

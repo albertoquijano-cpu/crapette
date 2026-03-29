@@ -15,12 +15,12 @@ function getAIPlayable(ai, houses) {
 
   houses.forEach((house, i) => {
     const top = getTopCard(house);
-    if (top) cards.push({ card: top, source: "house", houseIndex: i });
+    if (top) cards.push({ card: { ...top }, source: "house", houseIndex: i });
   });
 
   if (ai.crapette.length === 0) {
     const discardTop = getTopCard(ai.discard);
-    if (discardTop) cards.push({ card: discardTop, source: "discard" });
+    if (discardTop) cards.push({ card: { ...discardTop }, source: "discard" });
   }
 
   return cards;
@@ -47,16 +47,19 @@ function findPurposefulHouseMove(fromIndex, houses, foundations, moveHistory = [
   const card = getTopCard(houses[fromIndex]);
   if (!card) return null;
 
-  // Ultimo movimiento registrado
-  const lastMove = moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null;
-
   for (let ti = 0; ti < houses.length; ti++) {
     if (ti === fromIndex) continue;
     if (!canPlayToHouse(card, houses[ti])) continue;
 
-    // Regla anti ping-pong: bloquear si este movimiento revierte exactamente el anterior
-    const reverseKey = (card.id || "?") + ":" + ti + ">" + fromIndex;
-    if (lastMove === reverseKey) continue;
+    // Regla anti ping-pong: bloquear si la carta ya estuvo en la casa destino durante este turno
+    // Permitir siempre si el destino es casa vacia
+    if (houses[ti].length > 0) {
+      const cardId = card.id || "?";
+      const yaEstuvoEnDestino = moveHistory.some(k => k.startsWith(cardId + ":" + ti + ">"));
+      if (yaEstuvoEnDestino) continue;
+    } else {
+      // Casa vacia — permitir siempre, es jugada obligatoria
+    }
 
     // Proposito 1: origen tiene 1 carta — moverla crea casa vacia
     if (houses[fromIndex].length === 1) {
@@ -193,7 +196,7 @@ function getExpertMove(ai, human, houses, foundations, moveHistory) {
 
 // Historial de movimientos para detectar loops
 const aiMoveHistory = [];
-const HISTORY_SIZE = 8;
+const HISTORY_SIZE = 100; // Suficiente para todo un turno
 
 export function resetAIHistory() {
   aiMoveHistory.length = 0;
@@ -213,22 +216,11 @@ export function getAIMove(ai, human, houses, foundations, level) {
     return null;
   }
 
-  // Registrar movimiento en historial (solo casas)
+  // Registrar movimiento en historial (solo casas, no limpiar en otros tipos)
   if (move.type === "house") {
     const moveKey = (move.card.id || "?") + ":" + (move.houseIndex ?? -1) + ">" + move.target;
-    // Detectar ping-pong directo
-    if (aiMoveHistory.length > 0) {
-      const lastKey = aiMoveHistory[aiMoveHistory.length - 1];
-      const reverseKey = (move.card.id || "?") + ":" + move.target + ">" + (move.houseIndex ?? -1);
-      if (lastKey === reverseKey) {
-        aiMoveHistory.length = 0;
-        return null;
-      }
-    }
     aiMoveHistory.push(moveKey);
-    if (aiMoveHistory.length > HISTORY_SIZE) aiMoveHistory.shift();
-  } else {
-    aiMoveHistory.length = 0;
+    // No truncar durante el turno — el historial se limpia al pasar turno
   }
 
   return move;
@@ -266,6 +258,29 @@ export function applyAIMove(state, move) {
       ai.flippedCard = null;
     }
   };
+
+  // Verificar que la carta existe en el origen antes de moverla
+  const cardInSource = () => {
+    if (move.source === "crapette") {
+      const top = ai.crapette[ai.crapette.length - 1];
+      return top && top.id === move.card.id;
+    } else if (move.source === "house") {
+      const pile = houses[move.houseIndex];
+      const top = pile && pile[pile.length - 1];
+      return top && top.id === move.card.id;
+    } else if (move.source === "flipped") {
+      return ai.flippedCard && ai.flippedCard.id === move.card.id;
+    } else if (move.source === "discard") {
+      const top = ai.discard[ai.discard.length - 1];
+      return top && top.id === move.card.id;
+    }
+    return true;
+  };
+
+  if (!cardInSource()) {
+    console.error("[APPLYAI] Carta no en origen — movimiento cancelado:", move.card.id, "source:", move.source);
+    return null;
+  }
 
   if (move.type === "foundation") {
     removeFromSource();

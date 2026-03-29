@@ -97,8 +97,14 @@ export function Board({ config, onReset, onDashboard, onExit }) {
 
     const foundationObligation = mandatory.find(m => m.type === "foundation");
     if (foundationObligation) {
-      const isSameCard = mandatory.some(m => m.type === "foundation" && m.card.id === card.id);
-      if (!isSameCard) return true;
+      // Verificar si la carta seleccionada puede ir a fundacion (no comparar IDs exactos)
+      // Hay dos cartas identicas (human/ai) y cualquiera que pueda ir a fundacion es valida
+      const canGoToFoundation = mandatory.some(m => 
+        m.type === "foundation" && 
+        m.card.rank === card.rank && 
+        m.card.suit === card.suit
+      );
+      if (!canGoToFoundation) return true;
     }
 
     // Casa vacia: no bloquear carta del talon (flipped) ni del crapette
