@@ -78,9 +78,7 @@ function findPurposefulHouseMove(fromIndex, houses, foundations, moveHistory = [
     if (houses[ti].length === 0) {
       return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
     }
-
-    // Proposito 4: cualquier movimiento valido que no revierta el anterior
-    return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
+    // Solo se permiten los 3 propositos definidos — no movimientos libres (evita ping-pong)
   }
   return null;
 }
@@ -150,16 +148,7 @@ function getMove(ai, human, houses, foundations, moveHistory, maxDepth) {
     }
   }
 
-  // 3. Mover entre casas con proposito:
-  //    - Crear casa vacia (origen con 1 carta) para recibir crapette
-  //    - Desenterrar carta que va a fundacion
-  //    - Cualquier movimiento valido sin ping-pong
-  for (let si = 0; si < houses.length; si++) {
-    const move = findPurposefulHouseMove(si, houses, foundations, moveHistory);
-    if (move) return move;
-  }
-
-  // 4. Vaciar crapette — objetivo principal del juego
+  // 3. Vaciar crapette — objetivo principal del juego (PRIORIDAD ALTA)
   const crapetteTop = getTopCard(ai.crapette);
   if (crapetteTop) {
     const cCard = { ...crapetteTop, faceUp: true };
@@ -169,6 +158,14 @@ function getMove(ai, human, houses, foundations, moveHistory, maxDepth) {
   if (ai.flippedCard) {
     const houseMove = findHouseMove({ ...ai.flippedCard }, "flipped", -1, houses, []);
     if (houseMove) return houseMove;
+  }
+
+  // 4. Mover entre casas con proposito (sin ping-pong):
+  //    - Crear casa vacia para recibir crapette
+  //    - Desenterrar carta que va a fundacion
+  for (let si = 0; si < houses.length; si++) {
+    const move = findPurposefulHouseMove(si, houses, foundations, moveHistory);
+    if (move) return move;
   }
 
   // 5. Enviar cartas al rival (estrategico)
