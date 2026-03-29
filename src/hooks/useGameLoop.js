@@ -395,10 +395,6 @@ export function useGameLoop(config) {
     const move = getAIMove(ns.ai, ns.human, ns.houses, ns.foundations, ns.aiLevel);
 
     if (move) {
-      // Pre-calcular el nuevo estado ahora para evitar desfase temporal
-      const newState = applyAIMove(ns, move);
-      if (!newState) return;
-
       setAnnouncedMove(move);
       safeSetState(prev => ({
         ...prev,
@@ -406,12 +402,26 @@ export function useGameLoop(config) {
       }));
 
       setTimeout(() => {
+        // Usar estado actual para evitar desfase temporal
+        const currentState = stateRef.current;
+        const ns2 = cloneState(currentState);
+        // Recalcular movimiento con estado actual
+        const currentMove = getAIMove(ns2.ai, ns2.human, ns2.houses, ns2.foundations, ns2.aiLevel);
+        if (!currentMove) {
+          setAnnouncedMove(null);
+          return;
+        }
+        const newState = applyAIMove(ns2, currentMove);
+        if (!newState) {
+          setAnnouncedMove(null);
+          return;
+        }
         setAnnouncedMove(null);
-        setFlyingCard({ ...move });
+        setFlyingCard({ ...currentMove });
         setTimeout(() => setFlyingCard(null), 650);
         const winner = checkVictory(newState);
-        if (winner) { update({ ...newState, phase: GAME_PHASES.GAME_OVER, winner }, move); return; }
-        update({ ...newState, statusMessage: "IA jugando..." }, move);
+        if (winner) { update({ ...newState, phase: GAME_PHASES.GAME_OVER, winner }, currentMove); return; }
+        update({ ...newState, statusMessage: "IA jugando..." }, currentMove);
       }, 2000);
       return;
     }

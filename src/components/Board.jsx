@@ -344,9 +344,7 @@ export function Board({ config, onReset, onDashboard, onExit }) {
               fontFamily:"Cinzel,serif", fontWeight:"700", cursor:"pointer",
               display:"block", width:"100%", marginBottom:"6px"
             }}>✋ STOP</button>
-            <div style={{fontSize:"0.6em", color:"rgba(255,255,255,0.6)", fontFamily:"Cinzel,serif"}}>
-              Oprime cualquier tecla
-            </div>
+
           </div>
         )}
         {state.phase === "game_over" && (
