@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Board } from "./components/Board.jsx";
 import { SplashScreen } from "./components/SplashScreen.jsx";
+import { CreditsScreen } from "./components/CreditsScreen.jsx";
 import { InfoModal } from "./components/InfoModal.jsx";
 import { DEFAULT_CONFIG, AI_LEVEL_OPTIONS, VICTORY_MODE_OPTIONS, AI_SPEED_OPTIONS } from "./config/gameConfig.js";
 import "./App.css";
@@ -64,15 +65,18 @@ const MECANICA = (
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
+  const [showCredits, setShowCredits] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [modal, setModal] = useState(null);
 
-  const handleSplashDone = () => setShowSplash(false);
+  const handleSplashDone = () => { setShowSplash(false); setShowCredits(true); };
+  const handleCreditsDone = () => setShowCredits(false);
   const handleStart = () => setGameStarted(true);
   const handleReset = () => setGameStarted(false);
 
   if (showSplash) return <SplashScreen onStart={handleSplashDone} />;
+  if (showCredits) return <CreditsScreen onContinue={handleCreditsDone} />;
   if (gameStarted) return (
     <Board
       config={config}
@@ -98,7 +102,7 @@ export default function App() {
       <div className="setup__card">
         <h1 className="setup__title">BANCA RUSA</h1>
         <p className="setup__subtitle">Crapette</p>
-        <p style={{ textAlign: 'center', color: 'rgba(201,168,76,0.4)', fontSize: '0.65em', letterSpacing: '0.1em', marginTop: '-16px', marginBottom: '8px', fontFamily: 'monospace' }}>v2.8.5</p>
+        <p style={{ textAlign: 'center', color: 'rgba(201,168,76,0.4)', fontSize: '0.65em', letterSpacing: '0.1em', marginTop: '-16px', marginBottom: '8px', fontFamily: 'monospace' }}>v2.8.6</p>
 
         <div className="setup__info-btns">
           <button className="setup__info-btn" onClick={() => setModal('descripcion')}>
