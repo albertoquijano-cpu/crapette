@@ -16,15 +16,12 @@ export function useGameLoop(config) {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  // Saneamiento radical: eliminar IDs duplicados del estado completo
+  // Eliminar cartas duplicadas del estado
   const sanitizeState = (s) => {
     const seenIds = new Set();
     const dedup = (arr) => arr.filter(card => {
       if (!card || !card.id) return true;
-      if (seenIds.has(card.id)) {
-        console.warn("[DEDUP] Carta duplicada eliminada:", card.id);
-        return false;
-      }
+      if (seenIds.has(card.id)) { console.warn("[DEDUP] Carta duplicada eliminada:", card.id); return false; }
       seenIds.add(card.id);
       return true;
     });
@@ -34,46 +31,26 @@ export function useGameLoop(config) {
       seenIds.add(card.id);
       return card;
     };
-
     return {
       ...s,
-      foundations: Object.fromEntries(
-        Object.entries(s.foundations).map(([k, v]) => [k, dedup(v)])
-      ),
+      foundations: Object.fromEntries(Object.entries(s.foundations).map(([k, v]) => [k, dedup(v)])),
       houses: s.houses.map(h => dedup(h)),
-      human: {
-        ...s.human,
-        crapette: dedup(s.human.crapette),
-        talon: dedup(s.human.talon),
-        discard: dedup(s.human.discard),
-        flippedCard: dedupCard(s.human.flippedCard),
-      },
-      ai: {
-        ...s.ai,
-        crapette: dedup(s.ai.crapette),
-        talon: dedup(s.ai.talon),
-        discard: dedup(s.ai.discard),
-        flippedCard: dedupCard(s.ai.flippedCard),
-      },
+      human: { ...s.human, crapette: dedup(s.human.crapette), talon: dedup(s.human.talon), discard: dedup(s.human.discard), flippedCard: dedupCard(s.human.flippedCard) },
+      ai: { ...s.ai, crapette: dedup(s.ai.crapette), talon: dedup(s.ai.talon), discard: dedup(s.ai.discard), flippedCard: dedupCard(s.ai.flippedCard) },
     };
   };
 
+  const safeSetState = (updater) => {
+    if (typeof updater === 'function') setState(prev => sanitizeState(updater(prev)));
+    else setState(sanitizeState(updater));
+  };
+
   const update = useCallback((newState, move) => {
-    // Verificar integridad antes de guardar
     verifyStateIntegrity(newState);
     setHistory(h => recordMove(h, move, stateRef.current));
     setLastMove(move);
     setState(sanitizeState(newState));
   }, []);
-
-  // Wrapper para setState que siempre sanitiza
-  const safeSetState = (updater) => {
-    if (typeof updater === 'function') {
-      setState(prev => sanitizeState(updater(prev)));
-    } else {
-      setState(sanitizeState(updater));
-    }
-  };
 
   const cloneState = (s) => ({
     ...s,
@@ -137,13 +114,11 @@ export function useGameLoop(config) {
       const hasAnyObligation = s.mandatoryMoves.some(m => m.type === "foundation");
       const isObligatory = s.mandatoryMoves.some(m => m.card.id === card.id && m.type === "foundation");
       if (hasAnyObligation && !isObligatory) {
-        safeSetState(prev => {
+        setState(prev => {
           const ns = cloneState(prev);
           for (let i = 0; i < 3; i++) {
             if (ns.human.talon.length === 0) break;
-            const penCard = ns.human.talon[ns.human.talon.length - 1];
-            ns.human.talon = ns.human.talon.slice(0, -1);
-            ns.human.crapette.push({ ...penCard, faceUp: false });
+            ns.human.crapette.push({ ...ns.human.talon.pop(), faceUp: false });
           }
           return {
             ...ns,
@@ -193,13 +168,11 @@ export function useGameLoop(config) {
         m.card.id === card.id && (m.type === "house" || m.type === "fill_empty_casa")
       );
       if (hasAnyObligation && !isObligatory) {
-        safeSetState(prev => {
+        setState(prev => {
           const ns = cloneState(prev);
           for (let i = 0; i < 3; i++) {
             if (ns.human.talon.length === 0) break;
-            const penCard = ns.human.talon[ns.human.talon.length - 1];
-            ns.human.talon = ns.human.talon.slice(0, -1);
-            ns.human.crapette.push({ ...penCard, faceUp: false });
+            ns.human.crapette.push({ ...ns.human.talon.pop(), faceUp: false });
           }
           return {
             ...ns,
@@ -248,13 +221,11 @@ export function useGameLoop(config) {
       const hasAnyObligation = s.mandatoryMoves.some(m => m.type === "rival");
       const isObligatory = s.mandatoryMoves.some(m => m.card.id === card.id && m.type === "rival");
       if (hasAnyObligation && !isObligatory) {
-        safeSetState(prev => {
+        setState(prev => {
           const ns = cloneState(prev);
           for (let i = 0; i < 3; i++) {
             if (ns.human.talon.length === 0) break;
-            const penCard = ns.human.talon[ns.human.talon.length - 1];
-            ns.human.talon = ns.human.talon.slice(0, -1);
-            ns.human.crapette.push({ ...penCard, faceUp: false });
+            ns.human.crapette.push({ ...ns.human.talon.pop(), faceUp: false });
           }
           return {
             ...ns,
@@ -395,6 +366,11 @@ export function useGameLoop(config) {
     const move = getAIMove(ns.ai, ns.human, ns.houses, ns.foundations, ns.aiLevel);
 
     if (move) {
+      // Pre-aplicar el movimiento AHORA con el estado actual
+      const newState = applyAIMove(ns, move);
+      if (!newState) return;
+
+      // Mostrar anuncio y animar — luego confirmar el estado pre-calculado
       setAnnouncedMove(move);
       safeSetState(prev => ({
         ...prev,
@@ -402,26 +378,12 @@ export function useGameLoop(config) {
       }));
 
       setTimeout(() => {
-        // Usar estado actual para evitar desfase temporal
-        const currentState = stateRef.current;
-        const ns2 = cloneState(currentState);
-        // Recalcular movimiento con estado actual
-        const currentMove = getAIMove(ns2.ai, ns2.human, ns2.houses, ns2.foundations, ns2.aiLevel);
-        if (!currentMove) {
-          setAnnouncedMove(null);
-          return;
-        }
-        const newState = applyAIMove(ns2, currentMove);
-        if (!newState) {
-          setAnnouncedMove(null);
-          return;
-        }
         setAnnouncedMove(null);
-        setFlyingCard({ ...currentMove });
+        setFlyingCard({ ...move });
         setTimeout(() => setFlyingCard(null), 650);
         const winner = checkVictory(newState);
-        if (winner) { update({ ...newState, phase: GAME_PHASES.GAME_OVER, winner }, currentMove); return; }
-        update({ ...newState, statusMessage: "IA jugando..." }, currentMove);
+        if (winner) { update({ ...newState, phase: GAME_PHASES.GAME_OVER, winner }, move); return; }
+        update({ ...newState, statusMessage: "IA jugando..." }, move);
       }, 2000);
       return;
     }
@@ -439,7 +401,7 @@ export function useGameLoop(config) {
       ns.stopValid = null;
       ns.stopMessage = "";
       ns.statusMessage = "Tu turno";
-      resetAIHistory(); // Limpiar historial al pasar turno
+      resetAIHistory();
       update(ns, { type: "discard", card, player: "ai" });
       return;
     }
@@ -464,7 +426,7 @@ export function useGameLoop(config) {
     }
 
     const talonCard = ns.ai.talon[ns.ai.talon.length - 1];
-    ns.ai.talon = ns.ai.talon.slice(0, -1); // nuevo array sin la ultima carta
+    ns.ai.talon = ns.ai.talon.slice(0, -1);
     const card = { ...talonCard, faceUp: true };
     ns.ai.flippedCard = { ...card };
     update({ ...ns, statusMessage: "IA jugando..." }, { type: "flip", card: { ...card }, player: "ai" });
@@ -478,7 +440,7 @@ export function useGameLoop(config) {
     const aiMandatory = getMandatoryMoves(s.ai, s.houses, s.foundations, !s.crapetteUsedThisTurn);
 
     if (aiMandatory.length > 0) {
-      safeSetState(prev => ({
+      setState(prev => ({
         ...prev,
         phase: GAME_PHASES.HUMAN_TURN,
         currentPlayer: "human",
@@ -490,7 +452,7 @@ export function useGameLoop(config) {
         statusMessage: "Stop valido — tu turno",
       }));
     } else {
-      safeSetState(prev => {
+      setState(prev => {
         const newHuman = applyStopPenalty(prev.human);
         return {
           ...prev,
@@ -507,7 +469,7 @@ export function useGameLoop(config) {
   // ── Stop automatico (IA detecta que humano toco carta incorrecta) ─────────
   const triggerAutoStop = useCallback(() => {
     // Mostrar mensaje de stop primero, luego pasar a la IA despues de 2 segundos
-    safeSetState(prev => ({
+    setState(prev => ({
       ...prev,
       phase: GAME_PHASES.HUMAN_TURN, // mantener fase humano para mostrar mensaje
       stopValid: true,
@@ -517,7 +479,7 @@ export function useGameLoop(config) {
       crapetteUsedThisTurn: false,
     }));
     setTimeout(() => {
-      safeSetState(prev => ({
+      setState(prev => ({
         ...prev,
         phase: GAME_PHASES.AI_TURN,
         currentPlayer: "ai",

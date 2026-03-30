@@ -3,9 +3,10 @@
 import { useEffect, useRef } from "react";
 import { GAME_PHASES } from "../engine/gameState.js";
 
-export function useAI(phase, aiSpeed, runAITurn, aiLevel) {
+export function useAI(phase, aiSpeed, runAITurn) {
   const timerRef = useRef(null);
   const runAITurnRef = useRef(runAITurn);
+  const moveCountRef = useRef(0);
 
   useEffect(() => {
     runAITurnRef.current = runAITurn;
@@ -20,13 +21,10 @@ export function useAI(phase, aiSpeed, runAITurn, aiLevel) {
       return;
     }
 
-    // Experto: delay minimo entre movimientos para agotar todas las jugadas
-    const delay = aiLevel === "expert" ? Math.min(aiSpeed, 800) : aiSpeed;
-
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
       runAITurnRef.current();
-    }, delay);
+    }, aiSpeed);
 
     return () => {
       if (timerRef.current) {

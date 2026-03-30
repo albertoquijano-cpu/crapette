@@ -15,12 +15,12 @@ function getAIPlayable(ai, houses) {
 
   houses.forEach((house, i) => {
     const top = getTopCard(house);
-    if (top) cards.push({ card: { ...top }, source: "house", houseIndex: i });
+    if (top) cards.push({ card: top, source: "house", houseIndex: i });
   });
 
   if (ai.crapette.length === 0) {
     const discardTop = getTopCard(ai.discard);
-    if (discardTop) cards.push({ card: { ...discardTop }, source: "discard" });
+    if (discardTop) cards.push({ card: discardTop, source: "discard" });
   }
 
   return cards;
@@ -39,11 +39,10 @@ function findHouseMove(card, source, fromIndex, houses, visited = []) {
 }
 
 // Mover carta de casa a casa con proposito:
-// Propositos para mover carta entre casas:
-// 1. El origen tiene 1 carta — moverla crea una casa vacia (sin ping-pong)
+// 1. Destino es casa vacia (crea espacio)
 // 2. Destapa carta que puede ir a fundacion
-// 3. El destino es una casa vacia (llenar espacio ya creado)
-function findPurposefulHouseMove(fromIndex, houses, foundations, moveHistory = []) {
+// 3. Cualquier movimiento valido entre casas (reorganizacion util)
+function findPurposefulHouseMove(fromIndex, houses, foundations) {
   const card = getTopCard(houses[fromIndex]);
   if (!card) return null;
 
@@ -51,34 +50,20 @@ function findPurposefulHouseMove(fromIndex, houses, foundations, moveHistory = [
     if (ti === fromIndex) continue;
     if (!canPlayToHouse(card, houses[ti])) continue;
 
-    // Regla anti ping-pong: bloquear si la carta ya estuvo en la casa destino durante este turno
-    // Permitir siempre si el destino es casa vacia
-    if (houses[ti].length > 0) {
-      const cardId = card.id || "?";
-      const yaEstuvoEnDestino = moveHistory.some(k => k.startsWith(cardId + ":" + ti + ">"));
-      if (yaEstuvoEnDestino) continue;
-    } else {
-      // Casa vacia — permitir siempre, es jugada obligatoria
-    }
-
-    // Proposito 1: origen tiene 1 carta — moverla crea casa vacia
-    if (houses[fromIndex].length === 1) {
-      return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
+    // Proposito 1: casa destino vacia
+    if (houses[ti].length === 0) {
+      return { card, source: "house", houseIndex: fromIndex, type: "house", target: ti };
     }
 
     // Proposito 2: destapa carta que puede ir a fundacion
     if (houses[fromIndex].length >= 2) {
       const buried = houses[fromIndex][houses[fromIndex].length - 2];
       if (canPlayToFoundation(buried, foundations)) {
-        return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
+        return { card, source: "house", houseIndex: fromIndex, type: "house", target: ti };
       }
     }
 
-    // Proposito 3: destino es casa vacia — llenar espacio disponible
-    if (houses[ti].length === 0) {
-      return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
-    }
-    // Solo se permiten los 3 propositos definidos — no movimientos libres (evita ping-pong)
+    // No hay mas propositos — evitar movimientos sin objetivo claro
   }
   return null;
 }
@@ -106,16 +91,6 @@ function findUncoverMove(houses, foundations, human, maxDepth = 1) {
 }
 
 // Nivel Basico: solo jugadas a fundaciones evidentes
-
-// ── Motor de jugadas unificado ──────────────────────────────────────────
-// Prioridades iguales en todos los niveles:
-// 1. Cartas a fundaciones (desde cualquier origen)
-// 2. Llenar casas vacias con cualquier carta
-// 3. Enviar cartas al crapette/descarte del rival
-// 4. Mover entre casas con proposito (crear vacio o desenterrar, sin ping-pong)
-// La unica diferencia entre niveles es maxDepth para desenterrar cartas:
-//   basico: 0 (solo superficiales), medio: 1, experto: Infinity
-
 function getMove(ai, human, houses, foundations, moveHistory, maxDepth) {
   const playable = getAIPlayable(ai, houses);
 
@@ -125,22 +100,18 @@ function getMove(ai, human, houses, foundations, moveHistory, maxDepth) {
     if (fKey) return { card, source, houseIndex, type: "foundation", target: fKey };
   }
 
-  // 1b. Desenterrar cartas enterradas hacia fundaciones (segun nivel)
+  // 1b. Desenterrar cartas enterradas (segun nivel)
   if (maxDepth > 0) {
     const uncover = findUncoverMove(houses, foundations, human, maxDepth);
     if (uncover) return uncover;
   }
 
-  // 2. Llenar casas vacias (obligatorio) con cualquier carta disponible
+  // 2. Llenar casas vacias (obligatorio)
   const emptyIdx = houses.findIndex(h => h.length === 0);
   if (emptyIdx >= 0) {
     const crapetteTop = getTopCard(ai.crapette);
-    if (crapetteTop) {
-      return { card: { ...crapetteTop, faceUp: true }, source: "crapette", houseIndex: undefined, type: "house", target: emptyIdx };
-    }
-    if (ai.flippedCard) {
-      return { card: { ...ai.flippedCard }, source: "flipped", houseIndex: undefined, type: "house", target: emptyIdx };
-    }
+    if (crapetteTop) return { card: { ...crapetteTop, faceUp: true }, source: "crapette", houseIndex: undefined, type: "house", target: emptyIdx };
+    if (ai.flippedCard) return { card: { ...ai.flippedCard }, source: "flipped", houseIndex: undefined, type: "house", target: emptyIdx };
     for (let si = 0; si < houses.length; si++) {
       if (si === emptyIdx) continue;
       const card = getTopCard(houses[si]);
@@ -148,7 +119,7 @@ function getMove(ai, human, houses, foundations, moveHistory, maxDepth) {
     }
   }
 
-  // 3. Vaciar crapette — objetivo principal del juego (PRIORIDAD ALTA)
+  // 3. Vaciar crapette — objetivo principal
   const crapetteTop = getTopCard(ai.crapette);
   if (crapetteTop) {
     const cCard = { ...crapetteTop, faceUp: true };
@@ -160,20 +131,16 @@ function getMove(ai, human, houses, foundations, moveHistory, maxDepth) {
     if (houseMove) return houseMove;
   }
 
-  // 4. Mover entre casas con proposito (sin ping-pong):
-  //    - Crear casa vacia para recibir crapette
-  //    - Desenterrar carta que va a fundacion
+  // 4. Mover entre casas con proposito (sin ping-pong)
   for (let si = 0; si < houses.length; si++) {
     const move = findPurposefulHouseMove(si, houses, foundations, moveHistory);
     if (move) return move;
   }
 
-  // 5. Enviar cartas al rival (estrategico)
+  // 5. Enviar cartas al rival
   for (const { card, source, houseIndex } of playable) {
-    if (canPlayToRivalCrapette(card, human.crapette))
-      return { card, source, houseIndex, type: "rival_crapette" };
-    if (canPlayToRivalDiscard(card, human.discard))
-      return { card, source, houseIndex, type: "rival_discard" };
+    if (canPlayToRivalCrapette(card, human.crapette)) return { card, source, houseIndex, type: "rival_crapette" };
+    if (canPlayToRivalDiscard(card, human.discard)) return { card, source, houseIndex, type: "rival_discard" };
   }
 
   return null;
@@ -191,9 +158,8 @@ function getExpertMove(ai, human, houses, foundations, moveHistory) {
   return getMove(ai, human, houses, foundations, moveHistory, Infinity);
 }
 
-// Historial de movimientos para detectar loops
 const aiMoveHistory = [];
-const HISTORY_SIZE = 100; // Suficiente para todo un turno
+const HISTORY_SIZE = 8;
 
 export function resetAIHistory() {
   aiMoveHistory.length = 0;
@@ -209,7 +175,6 @@ export function getAIMove(ai, human, houses, foundations, level) {
   }
 
   if (!move) {
-    aiMoveHistory.length = 0;
     return null;
   }
 
@@ -217,7 +182,6 @@ export function getAIMove(ai, human, houses, foundations, level) {
   if (move.type === "house") {
     const moveKey = (move.card.id || "?") + ":" + (move.houseIndex ?? -1) + ">" + move.target;
     aiMoveHistory.push(moveKey);
-    // No truncar durante el turno — el historial se limpia al pasar turno
   }
 
   return move;
@@ -256,7 +220,7 @@ export function applyAIMove(state, move) {
     }
   };
 
-  // Verificar que la carta existe en el origen antes de moverla
+  // Verificar que la carta existe en el origen
   const cardInSource = () => {
     if (move.source === "crapette") {
       const top = ai.crapette[ai.crapette.length - 1];
@@ -275,7 +239,7 @@ export function applyAIMove(state, move) {
   };
 
   if (!cardInSource()) {
-    console.error("[APPLYAI] Carta no en origen — movimiento cancelado:", move.card.id, "source:", move.source);
+    console.error("[APPLYAI] Carta no en origen:", move.card.id, "source:", move.source);
     return null;
   }
 
