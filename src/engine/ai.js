@@ -42,28 +42,46 @@ function findHouseMove(card, source, fromIndex, houses, visited = []) {
 // 1. Destino es casa vacia (crea espacio)
 // 2. Destapa carta que puede ir a fundacion
 // 3. Cualquier movimiento valido entre casas (reorganizacion util)
-function findPurposefulHouseMove(fromIndex, houses, foundations) {
+function findPurposefulHouseMove(fromIndex, houses, foundations, moveHistory = []) {
   const card = getTopCard(houses[fromIndex]);
   if (!card) return null;
+
+  const cardId = card.id || "?";
 
   for (let ti = 0; ti < houses.length; ti++) {
     if (ti === fromIndex) continue;
     if (!canPlayToHouse(card, houses[ti])) continue;
 
-    // Proposito 1: casa destino vacia
-    if (houses[ti].length === 0) {
-      return { card, source: "house", houseIndex: fromIndex, type: "house", target: ti };
+    // Anti ping-pong mejorado:
+    // 1. No regresar a casa donde ya estuvo esta carta (salio de ahi antes)
+    if (houses[ti].length > 0) {
+      const yaEstuvoEnDestino = moveHistory.some(k => k.startsWith(cardId + ":" + ti + ">"));
+      if (yaEstuvoEnDestino) continue;
+    }
+    // 2. No revertir el movimiento inmediatamente anterior
+    if (moveHistory.length > 0) {
+      const lastMove = moveHistory[moveHistory.length - 1];
+      const reverseKey = cardId + ":" + ti + ">" + fromIndex;
+      if (lastMove === reverseKey) continue;
+    }
+
+    // Proposito 1: origen tiene 1 carta — crea casa vacia
+    if (houses[fromIndex].length === 1) {
+      return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
     }
 
     // Proposito 2: destapa carta que puede ir a fundacion
     if (houses[fromIndex].length >= 2) {
       const buried = houses[fromIndex][houses[fromIndex].length - 2];
       if (canPlayToFoundation(buried, foundations)) {
-        return { card, source: "house", houseIndex: fromIndex, type: "house", target: ti };
+        return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
       }
     }
 
-    // No hay mas propositos — evitar movimientos sin objetivo claro
+    // Proposito 3: casa destino vacia
+    if (houses[ti].length === 0) {
+      return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
+    }
   }
   return null;
 }

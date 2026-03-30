@@ -95,22 +95,22 @@ export function Board({ config, onReset, onDashboard, onExit }) {
     const mandatory = getMandatoryMoves(state.human, state.houses, state.foundations, canUseCrapette);
     if (!mandatory || mandatory.length === 0) return false;
 
-    const foundationObligation = mandatory.find(m => m.type === "foundation");
-    if (foundationObligation) {
-      // Verificar si la carta seleccionada puede ir a fundacion (no comparar IDs exactos)
-      // Hay dos cartas identicas (human/ai) y cualquiera que pueda ir a fundacion es valida
-      const canGoToFoundation = mandatory.some(m => 
-        m.type === "foundation" && 
-        m.card.rank === card.rank && 
-        m.card.suit === card.suit
-      );
-      if (!canGoToFoundation) return true;
-    }
+    // Verificar si la carta seleccionada cumple ALGUNA jugada obligatoria
+    // No importa el orden — cualquier obligatoria es valida primero
+    const isFoundationMove = mandatory.some(m =>
+      m.type === "foundation" && m.card &&
+      m.card.rank === card.rank && m.card.suit === card.suit
+    );
+    const isFillMove = mandatory.some(m =>
+      m.type === "fill_empty_casa" &&
+      (source === "crapette" || source === "flipped" || source === "house")
+    );
 
-    // Casa vacia: no bloquear carta del talon (flipped) ni del crapette
-    // El jugador puede usar esas cartas para llenar la casa
-    const fillObligation = mandatory.find(m => m.type === "fill_empty_casa");
-    if (fillObligation && source !== "crapette" && source !== "flipped") return true;
+    // Si la carta cumple una obligatoria, permitir siempre
+    if (isFoundationMove || isFillMove) return false;
+
+    // Si hay obligatorias pendientes y esta carta no cumple ninguna, declarar stop
+    if (mandatory.length > 0) return true;
 
     return false;
   };
