@@ -146,7 +146,7 @@ function getMove(ai, human, houses, foundations, moveHistory, maxDepth) {
     }
   }
 
-  // 3. Vaciar crapette — objetivo principal
+  // 3. Vaciar crapette — objetivo principal del juego
   const crapetteTop = getTopCard(ai.crapette);
   if (crapetteTop) {
     const cCard = { ...crapetteTop, faceUp: true };
@@ -158,18 +158,26 @@ function getMove(ai, human, houses, foundations, moveHistory, maxDepth) {
     if (houseMove) return houseMove;
   }
 
-  // 4. Mover entre casas con proposito (sin ping-pong)
+  // 4. Mover entre casas para crear espacio para el crapette o desenterrar obligatorias
+  // Solo movimientos con proposito claro — sin ping-pong
   for (let si = 0; si < houses.length; si++) {
     const move = findPurposefulHouseMove(si, houses, foundations, moveHistory);
     if (move) return move;
   }
 
-  // 5. Enviar cartas al rival
+  // 5. Enviar carta al descarte del rival (estrategico — secundario)
   for (const { card, source, houseIndex } of playable) {
-    if (canPlayToRivalCrapette(card, human.crapette)) return { card, source, houseIndex, type: "rival_crapette" };
-    if (canPlayToRivalDiscard(card, human.discard)) return { card, source, houseIndex, type: "rival_discard" };
+    if (canPlayToRivalDiscard(card, human.discard))
+      return { card, source, houseIndex, type: "rival_discard" };
   }
 
+  // 6. Enviar carta al crapette del rival (ultima prioridad)
+  for (const { card, source, houseIndex } of playable) {
+    if (canPlayToRivalCrapette(card, human.crapette))
+      return { card, source, houseIndex, type: "rival_crapette" };
+  }
+
+  // 5. Enviar cartas al rival
   return null;
 }
 
