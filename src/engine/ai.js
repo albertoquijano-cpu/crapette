@@ -15,7 +15,7 @@ function getAIPlayable(ai, houses) {
 
   houses.forEach((house, i) => {
     const top = getTopCard(house);
-    if (top) cards.push({ card: top, source: "house", houseIndex: i });
+    if (top) cards.push({ card: { ...top }, source: "house", houseIndex: i });
   });
 
   if (ai.crapette.length === 0) {
@@ -63,6 +63,11 @@ function findPurposefulHouseMove(fromIndex, houses, foundations, moveHistory = [
       const lastMove = moveHistory[moveHistory.length - 1];
       const reverseKey = cardId + ":" + ti + ">" + fromIndex;
       if (lastMove === reverseKey) continue;
+    }
+    // 3. No mover carta que ya fue enviada a esta casa antes (desde cualquier origen)
+    if (houses[ti].length > 0) {
+      const yaFueADestino = moveHistory.some(k => k.endsWith(">" + ti) && k.startsWith(cardId + ":"));
+      if (yaFueADestino) continue;
     }
 
     // Proposito 1: origen tiene 1 carta — crea casa vacia
@@ -257,7 +262,16 @@ export function applyAIMove(state, move) {
   };
 
   if (!cardInSource()) {
-    console.error("[APPLYAI] Carta no en origen:", move.card.id, "source:", move.source);
+    // Log detallado para diagnostico
+    if (move.source === "house") {
+      const pile = houses[move.houseIndex];
+      console.warn("[APPLYAI] Carta no en origen:", move.card.id, 
+        "source:", move.source, 
+        "houseIndex:", move.houseIndex,
+        "top en casa:", pile && pile.length > 0 ? pile[pile.length-1].id : "vacia",
+        "casas con esta carta:", houses.map((h,i) => h.some(c => c.id === move.card.id) ? i : -1).filter(i => i >= 0)
+      );
+    }
     return null;
   }
 

@@ -366,25 +366,33 @@ export function useGameLoop(config) {
     const move = getAIMove(ns.ai, ns.human, ns.houses, ns.foundations, ns.aiLevel);
 
     if (move) {
-      // Pre-aplicar el movimiento AHORA con el estado actual
-      const newState = applyAIMove(ns, move);
-      if (!newState) return;
+      // Aplicar el movimiento INMEDIATAMENTE al estado
+      let newState = applyAIMove(ns, move);
+      // Si falla, recalcular con historial limpio y estado fresco
+      if (!newState) {
+        resetAIHistory();
+        const ns2 = cloneState(stateRef.current);
+        const move2 = getAIMove(ns2.ai, ns2.human, ns2.houses, ns2.foundations, ns2.aiLevel);
+        if (!move2) return;
+        newState = applyAIMove(ns2, move2);
+        if (!newState) return;
+      }
 
-      // Mostrar anuncio y animar — luego confirmar el estado pre-calculado
+      // Actualizar estado real de inmediato — sin esperar animacion
+      const winner = checkVictory(newState);
+      if (winner) {
+        update({ ...newState, phase: GAME_PHASES.GAME_OVER, winner }, move);
+        return;
+      }
+      update({ ...newState, statusMessage: "IA: " + move.card.rank + " de " + move.card.suit }, move);
+
+      // Animacion visual — no afecta el estado del juego
       setAnnouncedMove(move);
-      safeSetState(prev => ({
-        ...prev,
-        statusMessage: "IA: " + move.card.rank + " de " + move.card.suit,
-      }));
-
+      setFlyingCard({ ...move });
       setTimeout(() => {
         setAnnouncedMove(null);
-        setFlyingCard({ ...move });
-        setTimeout(() => setFlyingCard(null), 650);
-        const winner = checkVictory(newState);
-        if (winner) { update({ ...newState, phase: GAME_PHASES.GAME_OVER, winner }, move); return; }
-        update({ ...newState, statusMessage: "IA jugando..." }, move);
-      }, 2000);
+        setFlyingCard(null);
+      }, 650);
       return;
     }
 
