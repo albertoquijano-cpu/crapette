@@ -47,7 +47,6 @@ function findPurposefulHouseMove(fromIndex, houses, foundations, moveHistory = [
   if (!card) return null;
 
   // Anti ping-pong usando historial de la carta
-  // card.moveHistory = lista de indices de casas de donde salio la carta en este turno
   const cardMoveHistory = Array.isArray(card.moveHistory) ? card.moveHistory : [];
 
   for (let ti = 0; ti < houses.length; ti++) {
@@ -55,13 +54,24 @@ function findPurposefulHouseMove(fromIndex, houses, foundations, moveHistory = [
     if (!canPlayToHouse(card, houses[ti])) continue;
 
     // Bloquear si la carta ya salio de esta casa destino antes en el turno
-    // (evita A→B→A y A→B→C→B)
     if (houses[ti].length > 0 && cardMoveHistory.includes(ti)) continue;
 
-    // Bloquear si el movimiento inmediatamente anterior fue el reverso
+    // Bloquear si el movimiento inmediatamente anterior fue desde este destino
     if (cardMoveHistory.length > 0) {
       const lastFrom = cardMoveHistory[cardMoveHistory.length - 1];
       if (lastFrom === ti) continue;
+    }
+
+    // Bloquear si la carta ya fue a una casa con la misma carta tope (mismo rank+suit)
+    // Evita ping-pong entre dos cartas identicas (human/ai) del mismo rango
+    const topDestino = houses[ti].length > 0 ? houses[ti][houses[ti].length - 1] : null;
+    if (topDestino) {
+      const yaFueACasaConMismaCarta = cardMoveHistory.some(fromI => {
+        if (fromI < 0 || fromI >= houses.length) return false;
+        const topFromI = houses[fromI].length > 0 ? houses[fromI][houses[fromI].length - 1] : null;
+        return topFromI && topFromI.rank === topDestino.rank && topFromI.suit === topDestino.suit;
+      });
+      if (yaFueACasaConMismaCarta) continue;
     }
 
     // Proposito 1: origen tiene 1 carta — crea casa vacia

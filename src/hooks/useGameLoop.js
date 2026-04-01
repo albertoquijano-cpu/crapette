@@ -328,7 +328,7 @@ export function useGameLoop(config) {
       if (foundationPending.length > 0) {
         ns.stopDeclared = true;
         ns.stopValid = true;
-        ns.stopMessage = "Stop de la IA — " + foundationPending[0].reason;
+        ns.stopMessage = "✋ Stop — No enviaste una carta a su fundación";
         ns.statusMessage = "Stop — la IA toma el turno";
         update(ns, { type: "discard", card });
         return;
@@ -340,7 +340,7 @@ export function useGameLoop(config) {
       if (emptyPending.length > 0 && ns.human.crapette.length > 0) {
         ns.stopDeclared = true;
         ns.stopValid = true;
-        ns.stopMessage = "Stop de la IA — hay casas vacias sin llenar";
+        ns.stopMessage = "✋ Stop — No llenaste la casa vacía";
         ns.statusMessage = "Stop — la IA toma el turno";
         update(ns, { type: "discard", card });
         return;
@@ -467,7 +467,7 @@ export function useGameLoop(config) {
           human: newHuman,
           stopValid: false,
           stopDeclared: false,
-          stopMessage: "Stop invalido — 3 cartas de castigo",
+          stopMessage: "✋ Stop inválido — No había jugada obligatoria — 3 cartas de castigo",
           statusMessage: "Stop invalido — continua la IA",
         };
       });
@@ -482,7 +482,7 @@ export function useGameLoop(config) {
       phase: GAME_PHASES.HUMAN_TURN, // mantener fase humano para mostrar mensaje
       stopValid: true,
       stopDeclared: true,
-      stopMessage: "Stop! Tocaste carta incorrecta — la IA toma el turno",
+      stopMessage: "✋ Stop — Tocaste carta sin cumplir jugadas obligatorias",
       statusMessage: "Stop automatico — la IA continua en 2 segundos",
       crapetteUsedThisTurn: false,
     }));
