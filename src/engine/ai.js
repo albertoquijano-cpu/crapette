@@ -1,7 +1,7 @@
 // ai.js - Logica de IA con casas compartidas del tablero
 
 import { canPlayToFoundation, canPlayToHouse, canPlayToRivalDiscard, canPlayToRivalCrapette } from "./rules.js";
-import { getTopCard } from "./gameState.js";
+import { getTopCard, findCardById, removeCardFromState } from "./gameState.js";
 
 // Cartas jugables de la IA (crapette, flipped, discard)
 // houses: state.houses (todas las casas del tablero)
@@ -46,28 +46,22 @@ function findPurposefulHouseMove(fromIndex, houses, foundations, moveHistory = [
   const card = getTopCard(houses[fromIndex]);
   if (!card) return null;
 
-  const cardId = card.id || "?";
+  // Anti ping-pong usando historial de la carta
+  // card.moveHistory = lista de indices de casas de donde salio la carta en este turno
+  const cardMoveHistory = Array.isArray(card.moveHistory) ? card.moveHistory : [];
 
   for (let ti = 0; ti < houses.length; ti++) {
     if (ti === fromIndex) continue;
     if (!canPlayToHouse(card, houses[ti])) continue;
 
-    // Anti ping-pong mejorado:
-    // 1. No regresar a casa donde ya estuvo esta carta (salio de ahi antes)
-    if (houses[ti].length > 0) {
-      const yaEstuvoEnDestino = moveHistory.some(k => k.startsWith(cardId + ":" + ti + ">"));
-      if (yaEstuvoEnDestino) continue;
-    }
-    // 2. No revertir el movimiento inmediatamente anterior
-    if (moveHistory.length > 0) {
-      const lastMove = moveHistory[moveHistory.length - 1];
-      const reverseKey = cardId + ":" + ti + ">" + fromIndex;
-      if (lastMove === reverseKey) continue;
-    }
-    // 3. No mover carta que ya fue enviada a esta casa antes (desde cualquier origen)
-    if (houses[ti].length > 0) {
-      const yaFueADestino = moveHistory.some(k => k.endsWith(">" + ti) && k.startsWith(cardId + ":"));
-      if (yaFueADestino) continue;
+    // Bloquear si la carta ya salio de esta casa destino antes en el turno
+    // (evita A→B→A y A→B→C→B)
+    if (houses[ti].length > 0 && cardMoveHistory.includes(ti)) continue;
+
+    // Bloquear si el movimiento inmediatamente anterior fue el reverso
+    if (cardMoveHistory.length > 0) {
+      const lastFrom = cardMoveHistory[cardMoveHistory.length - 1];
+      if (lastFrom === ti) continue;
     }
 
     // Proposito 1: origen tiene 1 carta — crea casa vacia
@@ -213,82 +207,53 @@ export function getAIMove(ai, human, houses, foundations, level) {
 export function applyAIMove(state, move) {
   if (!move) return null;
 
-  // Clonar estado
-  const houses = state.houses.map(h => h.map(c => ({ ...c })));
-  const ai = {
-    ...state.ai,
-    crapette: state.ai.crapette.map(c => ({ ...c })),
-    discard: state.ai.discard.map(c => ({ ...c })),
-    talon: state.ai.talon.map(c => ({ ...c })),
-  };
-  const human = {
-    ...state.human,
-    crapette: state.human.crapette.map(c => ({ ...c })),
-    discard: state.human.discard.map(c => ({ ...c })),
-  };
-  const foundations = { ...state.foundations };
-
-  // Quitar carta de su origen
-  const removeFromSource = () => {
-    if (move.source === "crapette") {
-      ai.crapette.pop();
-      if (ai.crapette.length > 0)
-        ai.crapette[ai.crapette.length - 1] = { ...ai.crapette[ai.crapette.length - 1], faceUp: true };
-    } else if (move.source === "house") {
-      houses[move.houseIndex].pop();
-    } else if (move.source === "discard") {
-      ai.discard.pop();
-    } else if (move.source === "flipped") {
-      ai.flippedCard = null;
-    }
-  };
-
-  // Verificar que la carta existe en el origen
-  const cardInSource = () => {
-    if (move.source === "crapette") {
-      const top = ai.crapette[ai.crapette.length - 1];
-      return top && top.id === move.card.id;
-    } else if (move.source === "house") {
-      const pile = houses[move.houseIndex];
-      const top = pile && pile[pile.length - 1];
-      return top && top.id === move.card.id;
-    } else if (move.source === "flipped") {
-      return ai.flippedCard && ai.flippedCard.id === move.card.id;
-    } else if (move.source === "discard") {
-      const top = ai.discard[ai.discard.length - 1];
-      return top && top.id === move.card.id;
-    }
-    return true;
-  };
-
-  if (!cardInSource()) {
-    // Log detallado para diagnostico
-    if (move.source === "house") {
-      const pile = houses[move.houseIndex];
-      console.warn("[APPLYAI] Carta no en origen:", move.card.id, 
-        "source:", move.source, 
-        "houseIndex:", move.houseIndex,
-        "top en casa:", pile && pile.length > 0 ? pile[pile.length-1].id : "vacia",
-        "casas con esta carta:", houses.map((h,i) => h.some(c => c.id === move.card.id) ? i : -1).filter(i => i >= 0)
-      );
-    }
+  // Verificar que la carta existe usando findCardById (busca en todo el estado)
+  const found = findCardById(state, move.card.id);
+  if (!found) {
+    console.warn("[APPLYAI] Carta no encontrada en estado:", move.card.id);
     return null;
   }
 
+  // Quitar carta de donde realmente esta (no de donde la IA cree que esta)
+  const stateWithoutCard = removeCardFromState(state, move.card.id);
+
+  // Clonar estado limpio para aplicar el movimiento
+  const houses = stateWithoutCard.houses.map(h => h.map(c => ({ ...c })));
+  const ai = {
+    ...stateWithoutCard.ai,
+    crapette: stateWithoutCard.ai.crapette.map(c => ({ ...c })),
+    discard: stateWithoutCard.ai.discard.map(c => ({ ...c })),
+    talon: stateWithoutCard.ai.talon.map(c => ({ ...c })),
+    flippedCard: stateWithoutCard.ai.flippedCard ? { ...stateWithoutCard.ai.flippedCard } : null,
+  };
+  const human = {
+    ...stateWithoutCard.human,
+    crapette: stateWithoutCard.human.crapette.map(c => ({ ...c })),
+    discard: stateWithoutCard.human.discard.map(c => ({ ...c })),
+    talon: stateWithoutCard.human.talon.map(c => ({ ...c })),
+    flippedCard: stateWithoutCard.human.flippedCard ? { ...stateWithoutCard.human.flippedCard } : null,
+  };
+  const foundations = { ...stateWithoutCard.foundations };
+
+  // Carta ya removida por removeCardFromState — agregar al destino con historial
+  const prevHistory = Array.isArray(move.card.moveHistory) ? move.card.moveHistory : [];
+  const fromIdx = move.houseIndex !== undefined ? move.houseIndex : -1;
+
   if (move.type === "foundation") {
-    removeFromSource();
-    foundations[move.target] = [...(foundations[move.target] || []), { ...move.card, faceUp: true }];
+    foundations[move.target] = [...(foundations[move.target] || []), { ...move.card, faceUp: true, moveHistory: [] }];
   } else if (move.type === "house") {
-    removeFromSource();
-    houses[move.target].push({ ...move.card, faceUp: true });
+    houses[move.target].push({ ...move.card, faceUp: true, moveHistory: [...prevHistory, fromIdx] });
   } else if (move.type === "rival_discard") {
-    removeFromSource();
-    human.discard.push({ ...move.card, faceUp: true });
+    human.discard.push({ ...move.card, faceUp: true, moveHistory: [] });
   } else if (move.type === "rival_crapette") {
-    removeFromSource();
-    human.crapette.push({ ...move.card, faceUp: true });
+    human.crapette.push({ ...move.card, faceUp: true, moveHistory: [] });
     human.crapette[human.crapette.length - 1] = { ...human.crapette[human.crapette.length - 1], faceUp: true };
   }
 
-  return { ...state, houses, ai, human, foundations };
+  // Revelar nueva carta del crapette de la IA si aplica
+  if (move.source === "crapette" && ai.crapette.length > 0) {
+    ai.crapette[ai.crapette.length - 1] = { ...ai.crapette[ai.crapette.length - 1], faceUp: true };
+  }
+
+  return { ...stateWithoutCard, houses, ai, human, foundations };
 }

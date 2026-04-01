@@ -392,7 +392,7 @@ export function useGameLoop(config) {
       setTimeout(() => {
         setAnnouncedMove(null);
         setFlyingCard(null);
-      }, 650);
+      }, 1500);
       return;
     }
 

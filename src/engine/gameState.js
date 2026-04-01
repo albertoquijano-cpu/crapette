@@ -129,3 +129,66 @@ export function checkVictory(state) {
   }
   return null;
 }
+
+// ── Sistema de posición de cartas ─────────────────────────────────────────
+
+// Encontrar carta por ID en el estado completo
+export function findCardById(state, cardId) {
+  // Buscar en casas
+  for (let i = 0; i < state.houses.length; i++) {
+    const pile = state.houses[i];
+    for (let j = 0; j < pile.length; j++) {
+      if (pile[j].id === cardId) return { card: pile[j], location: { type: 'house', index: i, pileIndex: j } };
+    }
+  }
+  // Buscar en fundaciones
+  for (const [key, pile] of Object.entries(state.foundations)) {
+    for (let j = 0; j < pile.length; j++) {
+      if (pile[j].id === cardId) return { card: pile[j], location: { type: 'foundation', key, pileIndex: j } };
+    }
+  }
+  // Buscar en pilas del humano
+  for (const pileType of ['crapette', 'talon', 'discard']) {
+    const pile = state.human[pileType];
+    for (let j = 0; j < pile.length; j++) {
+      if (pile[j].id === cardId) return { card: pile[j], location: { type: pileType, player: 'human', pileIndex: j } };
+    }
+  }
+  if (state.human.flippedCard && state.human.flippedCard.id === cardId)
+    return { card: state.human.flippedCard, location: { type: 'flipped', player: 'human' } };
+
+  // Buscar en pilas de la IA
+  for (const pileType of ['crapette', 'talon', 'discard']) {
+    const pile = state.ai[pileType];
+    for (let j = 0; j < pile.length; j++) {
+      if (pile[j].id === cardId) return { card: pile[j], location: { type: pileType, player: 'ai', pileIndex: j } };
+    }
+  }
+  if (state.ai.flippedCard && state.ai.flippedCard.id === cardId)
+    return { card: state.ai.flippedCard, location: { type: 'flipped', player: 'ai' } };
+
+  return null; // Carta no encontrada
+}
+
+// Quitar carta de su ubicacion actual en el estado
+export function removeCardFromState(state, cardId) {
+  const found = findCardById(state, cardId);
+  if (!found) return state;
+
+  const { location } = found;
+  const s = { ...state };
+
+  if (location.type === 'house') {
+    s.houses = s.houses.map((h, i) => i === location.index ? h.filter(c => c.id !== cardId) : h);
+  } else if (location.type === 'foundation') {
+    s.foundations = { ...s.foundations, [location.key]: s.foundations[location.key].filter(c => c.id !== cardId) };
+  } else if (location.type === 'flipped') {
+    if (location.player === 'human') s.human = { ...s.human, flippedCard: null };
+    else s.ai = { ...s.ai, flippedCard: null };
+  } else {
+    if (location.player === 'human') s.human = { ...s.human, [location.type]: s.human[location.type].filter(c => c.id !== cardId) };
+    else s.ai = { ...s.ai, [location.type]: s.ai[location.type].filter(c => c.id !== cardId) };
+  }
+
+  return s;
+}

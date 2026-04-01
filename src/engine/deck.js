@@ -48,16 +48,17 @@ export function dealCards(deck) {
   const crapette = shuffled.slice(0, 13).map((c, i) => ({
     ...c,
     faceUp: i === 12,
+    position: { type: 'crapette', player: c.ownerId, index: i },
   }));
 
   // 4 casas de 1 carta cada una, boca arriba
   const houses = [];
   for (let h = 0; h < 4; h++) {
-    houses.push([{ ...shuffled[13 + h], faceUp: true }]);
+    houses.push([{ ...shuffled[13 + h], faceUp: true, position: { type: 'house', player: null, index: null } }]);
   }
 
   // Talon: 35 cartas restantes, todas boca abajo
-  const talon = shuffled.slice(17).map((c) => ({ ...c, faceUp: false }));
+  const talon = shuffled.slice(17).map((c, i) => ({ ...c, faceUp: false, position: { type: 'talon', player: c.ownerId, index: i } }));
 
   return { crapette, houses, talon, discard: [] };
 }
