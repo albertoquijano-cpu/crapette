@@ -108,8 +108,8 @@ function findUncoverMove(houses, foundations, human, maxDepth = 1) {
       const goesToRivalDiscard = human && human.discard && canPlayToRivalDiscard(buried, human.discard);
       const goesToRivalCrapette = human && human.crapette && canPlayToRivalCrapette(buried, human.crapette);
       if (!goesToFoundation && !goesToRivalDiscard && !goesToRivalCrapette) continue;
-      // La carta encima (depth-1 niveles arriba de la enterrada) puede moverse?
-      const top = house[house.length - depth];
+      // Siempre mover la carta SUPERIOR de la pila para ir destapando de arriba hacia abajo
+      const top = house[house.length - 1];
       const move = findHouseMove(top, "house", hi, houses, []);
       if (move) return move;
     }
