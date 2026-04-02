@@ -46,33 +46,19 @@ function findPurposefulHouseMove(fromIndex, houses, foundations, moveHistory = [
   const card = getTopCard(houses[fromIndex]);
   if (!card) return null;
 
-  // Anti ping-pong usando historial de la carta
-  const cardMoveHistory = Array.isArray(card.moveHistory) ? card.moveHistory : [];
+  // Anti ping-pong: la carta no puede ir a un destino al que ya fue en este turno
+  const rawHistory = Array.isArray(card.moveHistory) ? card.moveHistory : [];
+  const cardMoves = rawHistory.filter(m => typeof m === 'object' && m !== null && 'to' in m);
 
   for (let ti = 0; ti < houses.length; ti++) {
     if (ti === fromIndex) continue;
     if (!canPlayToHouse(card, houses[ti])) continue;
 
-    // Bloquear si la carta ya salio de esta casa destino antes en el turno
-    if (houses[ti].length > 0 && cardMoveHistory.includes(ti)) continue;
+    // Bloquear si la carta ya fue enviada a este destino antes en el turno
+    if (houses[ti].length > 0 && cardMoves.some(m => m.to === ti)) continue;
 
     // Bloquear si el movimiento inmediatamente anterior fue desde este destino
-    if (cardMoveHistory.length > 0) {
-      const lastFrom = cardMoveHistory[cardMoveHistory.length - 1];
-      if (lastFrom === ti) continue;
-    }
-
-    // Bloquear si la carta ya fue a una casa con la misma carta tope (mismo rank+suit)
-    // Evita ping-pong entre dos cartas identicas (human/ai) del mismo rango
-    const topDestino = houses[ti].length > 0 ? houses[ti][houses[ti].length - 1] : null;
-    if (topDestino) {
-      const yaFueACasaConMismaCarta = cardMoveHistory.some(fromI => {
-        if (fromI < 0 || fromI >= houses.length) return false;
-        const topFromI = houses[fromI].length > 0 ? houses[fromI][houses[fromI].length - 1] : null;
-        return topFromI && topFromI.rank === topDestino.rank && topFromI.suit === topDestino.suit;
-      });
-      if (yaFueACasaConMismaCarta) continue;
-    }
+    if (cardMoves.length > 0 && cardMoves[cardMoves.length - 1].from === ti) continue;
 
     // Proposito 1: origen tiene 1 carta — crea casa vacia
     if (houses[fromIndex].length === 1) {
@@ -260,7 +246,9 @@ export function applyAIMove(state, move) {
   if (move.type === "foundation") {
     foundations[move.target] = [...(foundations[move.target] || []), { ...move.card, faceUp: true, moveHistory: [] }];
   } else if (move.type === "house") {
-    houses[move.target].push({ ...move.card, faceUp: true, moveHistory: [...prevHistory, fromIdx] });
+    // Registrar from+to para rastrear destinos visitados en el turno
+    const prevMoves = prevHistory.filter(m => typeof m === 'object' && m !== null && 'to' in m);
+    houses[move.target].push({ ...move.card, faceUp: true, moveHistory: [...prevMoves, { from: fromIdx, to: move.target }] });
   } else if (move.type === "rival_discard") {
     human.discard.push({ ...move.card, faceUp: true, moveHistory: [] });
   } else if (move.type === "rival_crapette") {
