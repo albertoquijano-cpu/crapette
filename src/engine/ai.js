@@ -42,11 +42,13 @@ function findHouseMove(card, source, fromIndex, houses, visited = []) {
 // 1. Destino es casa vacia (crea espacio)
 // 2. Destapa carta que puede ir a fundacion
 // 3. Cualquier movimiento valido entre casas (reorganizacion util)
-function findPurposefulHouseMove(fromIndex, houses, foundations, moveHistory = []) {
+function findPurposefulHouseMove(fromIndex, houses, foundations, ai) {
   const card = getTopCard(houses[fromIndex]);
   if (!card) return null;
 
-  // Anti ping-pong: la carta no puede ir a un destino al que ya fue en este turno
+  const crapetteTop = ai ? getTopCard(ai.crapette) : null;
+
+  // Historial de movimientos de esta carta en el turno actual
   const rawHistory = Array.isArray(card.moveHistory) ? card.moveHistory : [];
   const cardMoves = rawHistory.filter(m => typeof m === 'object' && m !== null && 'to' in m);
 
@@ -54,18 +56,15 @@ function findPurposefulHouseMove(fromIndex, houses, foundations, moveHistory = [
     if (ti === fromIndex) continue;
     if (!canPlayToHouse(card, houses[ti])) continue;
 
-    // Bloquear si la carta ya fue enviada a este destino antes en el turno
-    if (houses[ti].length > 0 && cardMoves.some(m => m.to === ti)) continue;
+    // Anti ping-pong: bloquear si la carta ya fue a este destino O vino de este destino
+    if (cardMoves.some(m => m.to === ti || m.from === ti)) continue;
 
-    // Bloquear si el movimiento inmediatamente anterior fue desde este destino
-    if (cardMoves.length > 0 && cardMoves[cardMoves.length - 1].from === ti) continue;
-
-    // Proposito 1: origen tiene 1 carta — crea casa vacia
-    if (houses[fromIndex].length === 1) {
+    // Proposito 1: casa destino vacia
+    if (houses[ti].length === 0) {
       return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
     }
 
-    // Proposito 2: destapa carta que puede ir a fundacion
+    // Proposito 2: mover carta desenterra una carta que va a fundacion
     if (houses[fromIndex].length >= 2) {
       const buried = houses[fromIndex][houses[fromIndex].length - 2];
       if (canPlayToFoundation(buried, foundations)) {
@@ -73,8 +72,8 @@ function findPurposefulHouseMove(fromIndex, houses, foundations, moveHistory = [
       }
     }
 
-    // Proposito 3: casa destino vacia
-    if (houses[ti].length === 0) {
+    // Proposito 3: casa origen tiene 1 carta Y el crapette puede ocuparla
+    if (houses[fromIndex].length === 1 && crapetteTop) {
       return { card: { ...card }, source: "house", houseIndex: fromIndex, type: "house", target: ti };
     }
   }
@@ -144,10 +143,12 @@ function getMove(ai, human, houses, foundations, moveHistory, maxDepth) {
     if (houseMove) return houseMove;
   }
 
-  // 4. Mover entre casas para crear espacio para el crapette o desenterrar obligatorias
-  // Solo movimientos con proposito claro — sin ping-pong
+  // 4. Mover entre casas con proposito claro:
+  //    - Casa destino vacia
+  //    - Desenterra carta para fundacion
+  //    - Crea espacio para el crapette
   for (let si = 0; si < houses.length; si++) {
-    const move = findPurposefulHouseMove(si, houses, foundations, moveHistory);
+    const move = findPurposefulHouseMove(si, houses, foundations, ai);
     if (move) return move;
   }
 

@@ -112,7 +112,7 @@ export function useGameLoop(config) {
     if (s.stopDeclared && s.stopValid && s.mandatoryMoves && s.mandatoryMoves.length > 0) {
       // Cualquier jugada obligatoria es valida — el orden no importa
       const hasAnyObligation = s.mandatoryMoves.some(m => m.type === "foundation");
-      const isObligatory = s.mandatoryMoves.some(m => m.card.id === card.id && m.type === "foundation");
+      const isObligatory = s.mandatoryMoves.some(m => m.card && m.card.id === card.id && m.type === "foundation");
       if (hasAnyObligation && !isObligatory) {
         setState(prev => {
           const ns = cloneState(prev);
@@ -165,7 +165,7 @@ export function useGameLoop(config) {
       // Cualquier jugada obligatoria es valida — el orden no importa
       const hasAnyObligation = s.mandatoryMoves.some(m => m.type === "house" || m.type === "fill_empty_casa");
       const isObligatory = s.mandatoryMoves.some(m =>
-        m.card.id === card.id && (m.type === "house" || m.type === "fill_empty_casa")
+        m.card && m.card.id === card.id && (m.type === "house" || m.type === "fill_empty_casa")
       );
       if (hasAnyObligation && !isObligatory) {
         setState(prev => {
@@ -219,7 +219,7 @@ export function useGameLoop(config) {
     if (s.stopDeclared && s.stopValid && s.mandatoryMoves && s.mandatoryMoves.length > 0) {
       // Cualquier jugada obligatoria es valida — el orden no importa
       const hasAnyObligation = s.mandatoryMoves.some(m => m.type === "rival");
-      const isObligatory = s.mandatoryMoves.some(m => m.card.id === card.id && m.type === "rival");
+      const isObligatory = s.mandatoryMoves.some(m => m.card && m.card.id === card.id && m.type === "rival");
       if (hasAnyObligation && !isObligatory) {
         setState(prev => {
           const ns = cloneState(prev);
