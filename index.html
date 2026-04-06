@@ -8,18 +8,26 @@
   </head>
   <body>
     <div id="root"></div>
-    <!-- Limpiar SW y cache al cargar nueva version -->
     <script>
-      if ('serviceWorker' in navigator) {
+      // Matar SW viejo antes de que React monte
+      (function() {
+        if (!('serviceWorker' in navigator)) return;
+        // Desregistrar todos los SWs
         navigator.serviceWorker.getRegistrations().then(function(regs) {
           regs.forEach(function(reg) { reg.unregister(); });
         });
-      }
-      if ('caches' in window) {
-        caches.keys().then(function(keys) {
-          keys.forEach(function(key) { caches.delete(key); });
-        });
-      }
+        // Limpiar todos los caches de Workbox
+        if ('caches' in window) {
+          caches.keys().then(function(keys) {
+            keys.forEach(function(k) { caches.delete(k); });
+          });
+        }
+        // Forzar recarga limpia si venimos de un SW viejo
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+          window.location.reload();
+        }
+      })();
     </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
