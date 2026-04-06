@@ -38,6 +38,17 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         skipWaiting: true,
         clientsClaim: true,
+        cleanupOutdatedCaches: true,
+        // HTML siempre desde red — nunca del cache
+        navigateFallback: null,
+        runtimeCaching: [{
+          urlPattern: /^https:\/\/banca-rusa-crapette\.web\.app\//,
+          handler: 'NetworkFirst',
+          options: {
+            cacheName: 'html-cache',
+            networkTimeoutSeconds: 3,
+          }
+        }]
       }
     })
   ],

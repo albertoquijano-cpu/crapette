@@ -1,48 +1,67 @@
 // gameState.js — Estado completo de la partida
+// Arquitectura nueva: pilas numeradas, posición relativa
 
-import { createDeck, dealCards } from "./deck.js";
+import {
+  createDeck, dealCards,
+  PILES, HOUSE_PILES, FOUND_PILES, SUIT_FOUNDATIONS,
+} from './deck.js';
+
+// ── Fases del juego ──────────────────────────────────────────────────────────
+export const GAME_PHASES = {
+  SETUP:           'setup',
+  HUMAN_TURN:      'human_turn',
+  AI_TURN:         'ai_turn',
+  GAME_OVER:       'game_over',
+};
 
 export const GAME_MODES = {
-  VICTORY_CRAPETTE: "crapette",
-  VICTORY_ALL: "all",
+  VICTORY_CRAPETTE: 'crapette',  // gana quien vacía su crapette primero
+  VICTORY_ALL:      'all',       // gana quien vacía todo
 };
 
 export const AI_LEVELS = {
-  BASIC: "basic",
-  MEDIUM: "medium",
-  EXPERT: "expert",
+  BASIC:  'basic',   // solo cartas en pos=0
+  MEDIUM: 'medium',  // cartas en pos=0 y pos=1
+  EXPERT: 'expert',  // cualquier profundidad
 };
 
-export const GAME_PHASES = {
-  SETUP: "setup",
-  HUMAN_TURN: "human_turn",
-  HUMAN_CRAPETTE: "human_crapette",
-  HUMAN_TALON: "human_talon",
-  AI_TURN: "ai_turn",
-  AI_CRAPETTE: "ai_crapette",
-  AI_TALON: "ai_talon",
-  STOP_DECLARED: "stop_declared",
-  STOP_EVALUATION: "stop_evaluation",
-  GAME_OVER: "game_over",
-  REPLAY: "replay",
-};
-
-export const HUMAN_PHASES = ["human_turn", "human_crapette", "human_talon"];
-export const AI_PHASES = ["ai_turn", "ai_crapette", "ai_talon"];
-
+// ── Estado inicial ────────────────────────────────────────────────────────────
 export function createInitialState(config = {}) {
   const {
-    victoryMode = GAME_MODES.VICTORY_CRAPETTE,
-    aiLevel = AI_LEVELS.MEDIUM,
-    aiSpeed = 1000,
+    victoryMode  = GAME_MODES.VICTORY_CRAPETTE,
+    aiLevel      = AI_LEVELS.MEDIUM,
+    aiSpeed      = 1000,
     penaltyEnabled = true,
   } = config;
 
-  const humanDeck = createDeck("human");
-  const aiDeck = createDeck("ai");
+  const humanDeck = createDeck('h');
+  const aiDeck    = createDeck('a');
 
-  const humanDealt = dealCards(humanDeck);
-  const aiDealt = dealCards(aiDeck);
+  const humanDealt = dealCards(humanDeck, PILES.HUMAN_CRAPETTE, PILES.HUMAN_TALON);
+  const aiDealt    = dealCards(aiDeck,    PILES.AI_CRAPETTE,    PILES.AI_TALON);
+
+  // ── Fundaciones: objeto con clave = ID de pila ──────────────────────────
+  // Cada fundación empieza vacía. Cualquier jugador puede depositar en cualquiera.
+  const foundations = {};
+  for (const id of FOUND_PILES) foundations[id] = [];
+
+  // ── Casas del tablero ───────────────────────────────────────────────────
+  // Casas 1-4: cartas iniciales de la IA (lado izquierdo en pantalla)
+  // Casas 5-8: cartas iniciales del humano (lado derecho en pantalla)
+  const houses = {};
+  for (const id of HOUSE_PILES) houses[id] = [];
+
+  // Colocar cartas iniciales de la IA en casas 1-4
+  aiDealt.startingHouses.forEach((card, i) => {
+    const pileId = HOUSE_PILES[i]; // 1,2,3,4
+    houses[pileId] = [{ ...card, pile: pileId, pos: 0, faceUp: true }];
+  });
+
+  // Colocar cartas iniciales del humano en casas 5-8
+  humanDealt.startingHouses.forEach((card, i) => {
+    const pileId = HOUSE_PILES[4 + i]; // 5,6,7,8
+    houses[pileId] = [{ ...card, pile: pileId, pos: 0, faceUp: true }];
+  });
 
   return {
     victoryMode,
@@ -50,145 +69,239 @@ export function createInitialState(config = {}) {
     aiSpeed,
     penaltyEnabled,
 
-    // Fundaciones centrales: 8 pilas
-    foundations: {
-      spades_human: [],
-      hearts_human: [],
-      diamonds_human: [],
-      clubs_human: [],
-      spades_ai: [],
-      hearts_ai: [],
-      diamonds_ai: [],
-      clubs_ai: [],
-    },
+    foundations,  // { 9: [], 10: [], 11: [], 12: [], 13: [], 14: [], 15: [], 16: [] }
+    houses,       // { 1: [carta], 2: [carta], ..., 8: [carta] }
 
-    // Casas compartidas del tablero: 8 pilas
-    // indices 0-3: lado izquierdo (antes ai.houses)
-    // indices 4-7: lado derecho (antes human.houses)
-    houses: [
-      ...aiDealt.houses,
-      ...humanDealt.houses,
-    ],
-
-    // Estado del humano (solo pilas personales)
     human: {
-      crapette: humanDealt.crapette,
-      talon: humanDealt.talon,
-      discard: [],
-      flippedCard: null,
+      crapette: humanDealt.crapette,  // array de cartas, last = pos 0
+      talon:    humanDealt.talon,     // array de cartas, last = pos 0
+      discard:  [],
+      flipped:  null,                 // carta volteada del talon (zona temporal)
     },
 
-    // Estado de la IA (solo pilas personales)
     ai: {
       crapette: aiDealt.crapette,
-      talon: aiDealt.talon,
-      discard: [],
-      flippedCard: null,
+      talon:    aiDealt.talon,
+      discard:  [],
+      flipped:  null,
     },
 
-    // Control de turno
-    phase: GAME_PHASES.HUMAN_TURN,
-    currentPlayer: "human",
-    turnNumber: 0,
-    winner: null,
-    crapetteUsedThisTurn: false,
-    mandatoryMoves: [],
-    stopMessage: "",
-    stopValid: null,
-    stopDeclared: false,
-    statusMessage: "Tu turno — comienza la partida",
+    phase:         GAME_PHASES.HUMAN_TURN,
+    currentPlayer: 'human',
+    turnNumber:    0,
+    winner:        null,
+
+    // Stop
+    stopDeclared:  false,
+    stopValid:     null,
+    stopMessage:   '',
+
+    statusMessage: 'Tu turno — comienza la partida',
   };
 }
 
-export function getTopCard(pile) {
-  return pile[pile.length - 1];
+// ── Helpers de pilas ─────────────────────────────────────────────────────────
+
+// Carta superior de cualquier array (la jugable, pos=0)
+export function topCard(pile) {
+  return pile.length > 0 ? pile[pile.length - 1] : null;
 }
 
-export function isCrapetteEmpty(playerState) {
-  return playerState.crapette.length === 0;
+// Devuelve la pila real según su ID y el estado
+export function getPile(state, pileId) {
+  if (pileId >= 1 && pileId <= 8)   return state.houses[pileId];
+  if (pileId >= 9 && pileId <= 16)  return state.foundations[pileId];
+  if (pileId === PILES.HUMAN_CRAPETTE) return state.human.crapette;
+  if (pileId === PILES.HUMAN_TALON)    return state.human.talon;
+  if (pileId === PILES.HUMAN_DISCARD)  return state.human.discard;
+  if (pileId === PILES.AI_CRAPETTE)    return state.ai.crapette;
+  if (pileId === PILES.AI_TALON)       return state.ai.talon;
+  if (pileId === PILES.AI_DISCARD)     return state.ai.discard;
+  return null;
 }
 
-export function getTotalCards(playerState, houses) {
-  const crapette = playerState.crapette.length;
-  const talon = playerState.talon.length;
-  const discard = playerState.discard.length;
-  const flipped = playerState.flippedCard ? 1 : 0;
-  return crapette + talon + discard + flipped;
+// ── Sistema de posición relativa ──────────────────────────────────────────────
+// Regla: la carta superior (última del array) siempre tiene pos=0.
+//        Las que están debajo tienen pos=1, 2, 3...
+// Esta función recalcula y asigna las posiciones de todas las cartas de una pila.
+export function recalcPositions(pile) {
+  const n = pile.length;
+  return pile.map((card, i) => ({
+    ...card,
+    pos: (n - 1) - i,  // última carta → pos 0; primera → pos n-1
+  }));
 }
 
+// Recalcula posiciones de una pila dentro del estado (inmutable)
+function recalcPileInState(state, pileId) {
+  if (pileId >= 1 && pileId <= 8) {
+    return {
+      ...state,
+      houses: {
+        ...state.houses,
+        [pileId]: recalcPositions(state.houses[pileId]),
+      },
+    };
+  }
+  if (pileId >= 9 && pileId <= 16) {
+    return {
+      ...state,
+      foundations: {
+        ...state.foundations,
+        [pileId]: recalcPositions(state.foundations[pileId]),
+      },
+    };
+  }
+  // Pilas personales
+  const player = pileId < 24 ? 'human' : 'ai';
+  const key = {
+    [PILES.HUMAN_CRAPETTE]: 'crapette',
+    [PILES.HUMAN_TALON]:    'talon',
+    [PILES.HUMAN_DISCARD]:  'discard',
+    [PILES.AI_CRAPETTE]:    'crapette',
+    [PILES.AI_TALON]:       'talon',
+    [PILES.AI_DISCARD]:     'discard',
+  }[pileId];
+  if (!key) return state;
+  return {
+    ...state,
+    [player]: {
+      ...state[player],
+      [key]: recalcPositions(state[player][key]),
+    },
+  };
+}
+
+// ── Mover una carta ───────────────────────────────────────────────────────────
+// Quita la carta superior (pos=0) de fromPile y la pone en toPile.
+// Recalcula posiciones de ambas pilas.
+// La carta movida llega a toPile con pos=0 (será la nueva superior).
+// Retorna nuevo estado. No muta el original.
+export function moveTopCard(state, fromPileId, toPileId) {
+  const fromPile = getPile(state, fromPileId);
+  if (!fromPile || fromPile.length === 0) {
+    console.warn('[MOVE] Pila origen vacía:', fromPileId);
+    return state;
+  }
+
+  const card = { ...fromPile[fromPile.length - 1] };
+
+  // Quitar de origen
+  let s = setPile(state, fromPileId, fromPile.slice(0, -1));
+  // Recalc origen
+  s = recalcPileInState(s, fromPileId);
+
+  // Agregar a destino con pile actualizado
+  const toPile = getPile(s, toPileId) ?? [];
+  card.pile = toPileId;
+  card.faceUp = true; // siempre boca arriba al moverse al tablero
+  s = setPile(s, toPileId, [...toPile, card]);
+  // Recalc destino
+  s = recalcPileInState(s, toPileId);
+
+  return s;
+}
+
+// setPile: reemplaza una pila en el estado (inmutable)
+function setPile(state, pileId, newPile) {
+  if (pileId >= 1 && pileId <= 8) {
+    return { ...state, houses: { ...state.houses, [pileId]: newPile } };
+  }
+  if (pileId >= 9 && pileId <= 16) {
+    return { ...state, foundations: { ...state.foundations, [pileId]: newPile } };
+  }
+  const player = pileId <= 23 ? 'human' : 'ai';
+  const key = {
+    [PILES.HUMAN_CRAPETTE]: 'crapette',
+    [PILES.HUMAN_TALON]:    'talon',
+    [PILES.HUMAN_DISCARD]:  'discard',
+    [PILES.AI_CRAPETTE]:    'crapette',
+    [PILES.AI_TALON]:       'talon',
+    [PILES.AI_DISCARD]:     'discard',
+  }[pileId];
+  if (!key) return state;
+  return { ...state, [player]: { ...state[player], [key]: newPile } };
+}
+
+// ── Buscar carta por ID ───────────────────────────────────────────────────────
+// Devuelve { card, pileId, indexInPile } o null
+export function findCard(state, cardId) {
+  const allPiles = [
+    ...HOUSE_PILES.map(id => ({ id, pile: state.houses[id] })),
+    ...FOUND_PILES.map(id => ({ id, pile: state.foundations[id] })),
+    { id: PILES.HUMAN_CRAPETTE, pile: state.human.crapette },
+    { id: PILES.HUMAN_TALON,    pile: state.human.talon },
+    { id: PILES.HUMAN_DISCARD,  pile: state.human.discard },
+    ...(state.human.flipped ? [{ id: PILES.HUMAN_FLIPPED, pile: [state.human.flipped] }] : []),
+    { id: PILES.AI_CRAPETTE,    pile: state.ai.crapette },
+    { id: PILES.AI_TALON,       pile: state.ai.talon },
+    { id: PILES.AI_DISCARD,     pile: state.ai.discard },
+    ...(state.ai.flipped ? [{ id: PILES.AI_FLIPPED, pile: [state.ai.flipped] }] : []),
+  ];
+
+  for (const { id, pile } of allPiles) {
+    for (let i = 0; i < pile.length; i++) {
+      if (pile[i].id === cardId) return { card: pile[i], pileId: id, indexInPile: i };
+    }
+  }
+  return null;
+}
+
+// ── Victoria ──────────────────────────────────────────────────────────────────
 export function checkVictory(state) {
-  for (const player of ["human", "ai"]) {
+  for (const player of ['human', 'ai']) {
     const ps = state[player];
     if (state.victoryMode === GAME_MODES.VICTORY_CRAPETTE) {
       if (ps.crapette.length === 0) return player;
     } else {
-      // Modo vaciar todo: crapette + talon + discard + flipped = 0
-      const total = ps.crapette.length + ps.talon.length + ps.discard.length + (ps.flippedCard ? 1 : 0);
+      const total = ps.crapette.length + ps.talon.length + ps.discard.length + (ps.flipped ? 1 : 0);
       if (total === 0) return player;
     }
   }
   return null;
 }
 
-// ── Sistema de posición de cartas ─────────────────────────────────────────
-
-// Encontrar carta por ID en el estado completo
-export function findCardById(state, cardId) {
-  // Buscar en casas
-  for (let i = 0; i < state.houses.length; i++) {
-    const pile = state.houses[i];
-    for (let j = 0; j < pile.length; j++) {
-      if (pile[j].id === cardId) return { card: pile[j], location: { type: 'house', index: i, pileIndex: j } };
-    }
-  }
-  // Buscar en fundaciones
-  for (const [key, pile] of Object.entries(state.foundations)) {
-    for (let j = 0; j < pile.length; j++) {
-      if (pile[j].id === cardId) return { card: pile[j], location: { type: 'foundation', key, pileIndex: j } };
-    }
-  }
-  // Buscar en pilas del humano
-  for (const pileType of ['crapette', 'talon', 'discard']) {
-    const pile = state.human[pileType];
-    for (let j = 0; j < pile.length; j++) {
-      if (pile[j].id === cardId) return { card: pile[j], location: { type: pileType, player: 'human', pileIndex: j } };
-    }
-  }
-  if (state.human.flippedCard && state.human.flippedCard.id === cardId)
-    return { card: state.human.flippedCard, location: { type: 'flipped', player: 'human' } };
-
-  // Buscar en pilas de la IA
-  for (const pileType of ['crapette', 'talon', 'discard']) {
-    const pile = state.ai[pileType];
-    for (let j = 0; j < pile.length; j++) {
-      if (pile[j].id === cardId) return { card: pile[j], location: { type: pileType, player: 'ai', pileIndex: j } };
-    }
-  }
-  if (state.ai.flippedCard && state.ai.flippedCard.id === cardId)
-    return { card: state.ai.flippedCard, location: { type: 'flipped', player: 'ai' } };
-
-  return null; // Carta no encontrada
+// ── Talon: reconstruir desde descarte ────────────────────────────────────────
+export function rebuildTalon(playerState, talonPile) {
+  if (playerState.talon.length > 0) return playerState;
+  if (playerState.discard.length === 0) return playerState;
+  const newTalon = [...playerState.discard]
+    .reverse()
+    .map((c, i, arr) => ({ ...c, faceUp: false, pile: talonPile, pos: (arr.length - 1) - i }));
+  return { ...playerState, talon: newTalon, discard: [] };
 }
 
-// Quitar carta de su ubicacion actual en el estado
-export function removeCardFromState(state, cardId) {
-  const found = findCardById(state, cardId);
-  if (!found) return state;
+// ── Penalidad de stop fallido ────────────────────────────────────────────────
+// Las últimas 3 cartas del descarte pasan al crapette
+export function applyStopPenalty(playerState, crapettePile) {
+  const discard  = [...playerState.discard];
+  const count    = Math.min(3, discard.length);
+  const penalty  = discard.splice(discard.length - count, count);
+  const crapette = recalcPositions([
+    ...playerState.crapette,
+    ...penalty.map(c => ({ ...c, faceUp: false, pile: crapettePile })),
+  ]);
+  return { ...playerState, crapette, discard };
+}
 
-  const { location } = found;
-  const s = { ...state };
+// ── Clonar estado (inmutable profundo) ───────────────────────────────────────
+export function cloneState(s) {
+  const clonePile = arr => arr.map(c => ({ ...c }));
+  const clonePlayer = p => ({
+    ...p,
+    crapette: clonePile(p.crapette),
+    talon:    clonePile(p.talon),
+    discard:  clonePile(p.discard),
+    flipped:  p.flipped ? { ...p.flipped } : null,
+  });
+  const cloneObj = obj =>
+    Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, clonePile(v)]));
 
-  if (location.type === 'house') {
-    s.houses = s.houses.map((h, i) => i === location.index ? h.filter(c => c.id !== cardId) : h);
-  } else if (location.type === 'foundation') {
-    s.foundations = { ...s.foundations, [location.key]: s.foundations[location.key].filter(c => c.id !== cardId) };
-  } else if (location.type === 'flipped') {
-    if (location.player === 'human') s.human = { ...s.human, flippedCard: null };
-    else s.ai = { ...s.ai, flippedCard: null };
-  } else {
-    if (location.player === 'human') s.human = { ...s.human, [location.type]: s.human[location.type].filter(c => c.id !== cardId) };
-    else s.ai = { ...s.ai, [location.type]: s.ai[location.type].filter(c => c.id !== cardId) };
-  }
-
-  return s;
+  return {
+    ...s,
+    foundations: cloneObj(s.foundations),
+    houses:      cloneObj(s.houses),
+    human:       clonePlayer(s.human),
+    ai:          clonePlayer(s.ai),
+  };
 }

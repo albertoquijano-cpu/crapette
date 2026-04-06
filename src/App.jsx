@@ -1,6 +1,7 @@
 // App.jsx - Entrada principal con pantalla de configuracion
 
 import { useState } from "react";
+import { version } from "../package.json";
 import { Board } from "./components/Board.jsx";
 import { SplashScreen } from "./components/SplashScreen.jsx";
 import { CreditsScreen } from "./components/CreditsScreen.jsx";
@@ -102,7 +103,7 @@ export default function App() {
       <div className="setup__card">
         <h1 className="setup__title">BANCA RUSA</h1>
         <p className="setup__subtitle">Crapette</p>
-        <p style={{ textAlign: 'center', color: 'rgba(201,168,76,0.4)', fontSize: '0.65em', letterSpacing: '0.1em', marginTop: '-16px', marginBottom: '8px', fontFamily: 'monospace' }}>v2.8.11</p>
+        <p style={{ textAlign: 'center', color: 'rgba(201,168,76,0.4)', fontSize: '0.65em', letterSpacing: '0.1em', marginTop: '-16px', marginBottom: '8px', fontFamily: 'monospace' }}>v{version}</p>
 
         <div className="setup__info-btns">
           <button className="setup__info-btn" onClick={() => setModal('descripcion')}>

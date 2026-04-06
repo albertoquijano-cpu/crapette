@@ -1,515 +1,466 @@
-// useGameLoop.js - Motor principal con casas compartidas del tablero
+// useGameLoop.js — Motor principal del juego
+// Arquitectura nueva: pilas numeradas, posición relativa, propósitos 1 y 2
 
-import { useState, useCallback, useRef } from "react";
-import { createInitialState, checkVictory, GAME_PHASES, HUMAN_PHASES, AI_PHASES } from "../engine/gameState.js";
-import { canPlayToFoundation, canPlayToHouse, rebuildTalon, getMandatoryMoves, applyStopPenalty, hasObligatoryMoves } from "../engine/rules.js";
-import { getAIMove, applyAIMove, resetAIHistory } from "../engine/ai.js";
-import { createHistory, recordMove } from "../engine/moveHistory.js";
-import { verifyStateIntegrity } from "../engine/deck.js";
+import { useState, useCallback, useRef } from 'react';
 
+import {
+  createInitialState, cloneState, checkVictory,
+  moveTopCard, topCard, rebuildTalon, applyStopPenalty,
+  GAME_PHASES,
+} from '../engine/gameState.js';
+
+import {
+  canPlayToFoundation, canPlayToHouse,
+  canPlayToRivalDiscard, canPlayToRivalCrapette,
+  getMandatoryMoves,
+} from '../engine/rules.js';
+
+import {
+  getAIMove, applyAIMove, resetAITurnSession,
+} from '../engine/ai.js';
+
+import {
+  PILES, HOUSE_PILES, verifyStateIntegrity,
+} from '../engine/deck.js';
+
+// ── Hook principal ────────────────────────────────────────────────────────────
 export function useGameLoop(config) {
-  const [state, setState] = useState(() => createInitialState(config));
-  const [history, setHistory] = useState(createHistory());
-  const [lastMove, setLastMove] = useState(null);
-  const [announcedMove, setAnnouncedMove] = useState(null);
-  const [flyingCard, setFlyingCard] = useState(null);
+  const [state, setState]             = useState(() => createInitialState(config));
+  const [lastMove, setLastMove]       = useState(null);
+  const [announcedMove, setAnnouncedMove] = useState(null);  // para animación visual
+  const [flyingCard, setFlyingCard]   = useState(null);
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  // Eliminar cartas duplicadas del estado
-  const sanitizeState = (s) => {
-    const seenIds = new Set();
-    const dedup = (arr) => arr.filter(card => {
-      if (!card || !card.id) return true;
-      if (seenIds.has(card.id)) { console.warn("[DEDUP] Carta duplicada eliminada:", card.id); return false; }
-      seenIds.add(card.id);
-      return true;
-    });
-    const dedupCard = (card) => {
-      if (!card || !card.id) return null;
-      if (seenIds.has(card.id)) return null;
-      seenIds.add(card.id);
-      return card;
-    };
-    return {
-      ...s,
-      foundations: Object.fromEntries(Object.entries(s.foundations).map(([k, v]) => [k, dedup(v)])),
-      houses: s.houses.map(h => dedup(h)),
-      human: { ...s.human, crapette: dedup(s.human.crapette), talon: dedup(s.human.talon), discard: dedup(s.human.discard), flippedCard: dedupCard(s.human.flippedCard) },
-      ai: { ...s.ai, crapette: dedup(s.ai.crapette), talon: dedup(s.ai.talon), discard: dedup(s.ai.discard), flippedCard: dedupCard(s.ai.flippedCard) },
-    };
-  };
-
-  const safeSetState = (updater) => {
-    if (typeof updater === 'function') setState(prev => sanitizeState(updater(prev)));
-    else setState(sanitizeState(updater));
-  };
-
+  // ── Actualizar estado con verificación ──────────────────────────────────────
   const update = useCallback((newState, move) => {
-    verifyStateIntegrity(newState);
-    setHistory(h => recordMove(h, move, stateRef.current));
+    if (process.env.NODE_ENV !== 'production') {
+      verifyStateIntegrity(newState);
+    }
     setLastMove(move);
-    setState(sanitizeState(newState));
+    setState(newState);
   }, []);
 
-  const cloneState = (s) => ({
-    ...s,
-    foundations: Object.fromEntries(
-      Object.entries(s.foundations).map(([k, v]) => [k, v.map(c => ({ ...c }))])
-    ),
-    houses: s.houses.map(h => h.map(c => ({ ...c }))),
-    human: {
-      ...s.human,
-      crapette: s.human.crapette.map(c => ({ ...c })),
-      discard: s.human.discard.map(c => ({ ...c })),
-      talon: s.human.talon.map(c => ({ ...c })),
-      flippedCard: s.human.flippedCard ? { ...s.human.flippedCard } : null,
-    },
-    ai: {
-      ...s.ai,
-      crapette: s.ai.crapette.map(c => ({ ...c })),
-      discard: s.ai.discard.map(c => ({ ...c })),
-      talon: s.ai.talon.map(c => ({ ...c })),
-      flippedCard: s.ai.flippedCard ? { ...s.ai.flippedCard } : null,
-    },
-  });
+  // ── Calcular jugadas obligatorias del humano ──────────────────────────────
+  const calcMandatory = (ns) =>
+    getMandatoryMoves(ns.human, ns.houses, ns.foundations, ns.aiLevel, true);
 
-  const revealCrapette = (crapette) => {
-    if (crapette.length === 0) return crapette;
-    const arr = [...crapette];
-    arr[arr.length - 1] = { ...arr[arr.length - 1], faceUp: true };
-    return arr;
-  };
-
-  const calcMandatory = (ns, player, canUseCrapette) => {
-    const ps = ns[player];
-    return getMandatoryMoves(ps, ns.houses, ns.foundations, canUseCrapette);
-  };
-
-  // Quitar carta de su origen en el estado clonado
-  const removeFromSource = (ns, source, houseIndex, player = "human") => {
-    if (source === "crapette") {
-      ns[player].crapette.pop();
-      ns[player].crapette = revealCrapette(ns[player].crapette);
-    } else if (source === "house") {
-      ns.houses[houseIndex].pop();
-    } else if (source === "discard") {
-      ns[player].discard.pop();
-    } else if (source === "flipped") {
-      ns[player].flippedCard = null;
+  // ── Helpers de pila personal ─────────────────────────────────────────────
+  // Quita la carta superior de la pila personal del humano (crapette, flipped, discard)
+  // y revela la siguiente si aplica.
+  const removeHumanCard = (ns, source) => {
+    switch (source) {
+      case 'crapette': {
+        const arr = [...ns.human.crapette];
+        arr.pop();
+        if (arr.length > 0) arr[arr.length - 1] = { ...arr[arr.length - 1], faceUp: true };
+        ns.human = { ...ns.human, crapette: arr };
+        break;
+      }
+      case 'flipped':
+        ns.human = { ...ns.human, flipped: null };
+        break;
+      case 'discard': {
+        const arr = [...ns.human.discard];
+        arr.pop();
+        ns.human = { ...ns.human, discard: arr };
+        break;
+      }
+      // source 'house' se maneja vía moveTopCard
     }
   };
 
-  // ── Mover carta a fundacion ──────────────────────────────────────────────
+  // ── MOVER A FUNDACIÓN ─────────────────────────────────────────────────────
   const playToFoundation = useCallback((card, source, houseIndex) => {
     const s = stateRef.current;
-    if (!HUMAN_PHASES.includes(s.phase)) return;
+    if (s.phase !== GAME_PHASES.HUMAN_TURN) return;
 
-    const fKey = canPlayToFoundation(card, s.foundations);
-    if (!fKey) return;
+    const fId = canPlayToFoundation(card, s.foundations);
+    if (!fId) return;
 
-    // Si hay stop valido pendiente, el primer movimiento DEBE ser el obligatorio
-    if (s.stopDeclared && s.stopValid && s.mandatoryMoves && s.mandatoryMoves.length > 0) {
-      // Cualquier jugada obligatoria es valida — el orden no importa
-      const hasAnyObligation = s.mandatoryMoves.some(m => m.type === "foundation");
-      const isObligatory = s.mandatoryMoves.some(m => m.card && m.card.id === card.id && m.type === "foundation");
-      if (hasAnyObligation && !isObligatory) {
-        setState(prev => {
-          const ns = cloneState(prev);
-          for (let i = 0; i < 3; i++) {
-            if (ns.human.talon.length === 0) break;
-            ns.human.crapette.push({ ...ns.human.talon.pop(), faceUp: false });
-          }
-          return {
-            ...ns,
-            phase: GAME_PHASES.AI_TURN,
-            currentPlayer: "ai",
-            stopDeclared: false,
-            stopValid: null,
-            stopMessage: "Stop fallido — no hiciste la jugada obligatoria — 3 cartas de castigo",
-            statusMessage: "Stop fallido — turno de la IA",
-            crapetteUsedThisTurn: false,
-          };
-        });
-        return;
-      }
-    }
+    // Stop pendiente: verificar que esta jugada es la obligatoria
+    if (!checkStopCompliance(s, card, 'foundation')) return;
+
     const ns = cloneState(s);
-    ns.humanHasPlayed = true;
-    removeFromSource(ns, source, houseIndex, "human");
-    ns.foundations[fKey] = [...ns.foundations[fKey], { ...card, faceUp: true }];
-    // Nota: crapetteUsedThisTurn solo se activa al voltear el talon, no al jugar crapette
 
-    const canUseCrapette = !ns.crapetteUsedThisTurn;
-    ns.mandatoryMoves = calcMandatory(ns, "human", canUseCrapette);
-    ns.statusMessage = card.rank + " a fundacion";
-    if (ns.mandatoryMoves.length === 0) {
-      ns.stopDeclared = false;
-      ns.stopValid = null;
-      ns.stopMessage = "";
+    if (source === 'house') {
+      // Usar moveTopCard para mover de casa a fundación
+      const moved = moveTopCard(ns, houseIndex, fId);
+      Object.assign(ns, moved);
+    } else {
+      // Carta personal → fundación
+      removeHumanCard(ns, source);
+      const pile = [...ns.foundations[fId], { ...card, faceUp: true, pile: fId, pos: 0 }];
+      ns.foundations = { ...ns.foundations, [fId]: pile };
     }
+
+    ns.mandatoryMoves = calcMandatory(ns);
+    ns.statusMessage = `${card.rank} a fundación`;
 
     const winner = checkVictory(ns);
-    if (winner) { update({ ...ns, phase: GAME_PHASES.GAME_OVER, winner }, { type: "foundation", card }); return; }
-    update(ns, { type: "foundation", card, source });
+    if (winner) {
+      update({ ...ns, phase: GAME_PHASES.GAME_OVER, winner }, { type: 'foundation', card });
+      return;
+    }
+    update(ns, { type: 'foundation', card, source });
   }, [update]);
 
-  // ── Mover carta a casa ───────────────────────────────────────────────────
+  // ── MOVER A CASA ──────────────────────────────────────────────────────────
   const playToHouse = useCallback((card, source, sourceIndex, targetIndex) => {
     const s = stateRef.current;
-    if (!HUMAN_PHASES.includes(s.phase)) return;
-
-    // El jugador puede mover libremente — el rival puede declarar Stop si ignora obligatorias
-    // Si hay stop valido pendiente, el primer movimiento DEBE ser el obligatorio
-    if (s.stopDeclared && s.stopValid && s.mandatoryMoves && s.mandatoryMoves.length > 0) {
-      // Cualquier jugada obligatoria es valida — el orden no importa
-      const hasAnyObligation = s.mandatoryMoves.some(m => m.type === "house" || m.type === "fill_empty_casa");
-      const isObligatory = s.mandatoryMoves.some(m =>
-        m.card && m.card.id === card.id && (m.type === "house" || m.type === "fill_empty_casa")
-      );
-      if (hasAnyObligation && !isObligatory) {
-        setState(prev => {
-          const ns = cloneState(prev);
-          for (let i = 0; i < 3; i++) {
-            if (ns.human.talon.length === 0) break;
-            ns.human.crapette.push({ ...ns.human.talon.pop(), faceUp: false });
-          }
-          return {
-            ...ns,
-            phase: GAME_PHASES.AI_TURN,
-            currentPlayer: "ai",
-            stopDeclared: false,
-            stopValid: null,
-            stopMessage: "Stop fallido — no hiciste la jugada obligatoria — 3 cartas de castigo",
-            statusMessage: "Stop fallido — turno de la IA",
-            crapetteUsedThisTurn: false,
-          };
-        });
-        return;
-      }
-    }
-
+    if (s.phase !== GAME_PHASES.HUMAN_TURN) return;
     if (!canPlayToHouse(card, s.houses[targetIndex])) return;
 
-    const ns = cloneState(s);
-    ns.humanHasPlayed = true;
-    removeFromSource(ns, source, sourceIndex, "human");
-    ns.houses[targetIndex].push({ ...card, faceUp: true });
+    if (!checkStopCompliance(s, card, 'house')) return;
 
-    const canUseCrapette = !ns.crapetteUsedThisTurn;
-    ns.mandatoryMoves = calcMandatory(ns, "human", canUseCrapette);
-    ns.statusMessage = "Carta movida";
-    if (ns.mandatoryMoves.length === 0) {
-      ns.stopDeclared = false;
-      ns.stopValid = null;
-      ns.stopMessage = "";
+    const ns = cloneState(s);
+
+    if (source === 'house') {
+      const moved = moveTopCard(ns, sourceIndex, targetIndex);
+      Object.assign(ns, moved);
+    } else {
+      removeHumanCard(ns, source);
+      const arr = [...ns.houses[targetIndex], { ...card, faceUp: true, pile: targetIndex, pos: 0 }];
+      // Recalc posiciones de la casa destino
+      const n = arr.length;
+      ns.houses = {
+        ...ns.houses,
+        [targetIndex]: arr.map((c, i) => ({ ...c, pos: (n - 1) - i })),
+      };
     }
-    const winnerHouse = checkVictory(ns);
-    if (winnerHouse) { update({ ...ns, phase: GAME_PHASES.GAME_OVER, winner: winnerHouse }, { type: "house", card, source }); return; }
-    update(ns, { type: "house", card, source });
+
+    ns.mandatoryMoves = calcMandatory(ns);
+    ns.statusMessage = 'Carta movida';
+
+    const winner = checkVictory(ns);
+    if (winner) {
+      update({ ...ns, phase: GAME_PHASES.GAME_OVER, winner }, { type: 'house', card });
+      return;
+    }
+    update(ns, { type: 'house', card, source });
   }, [update]);
 
-  // ── Mover carta al rival ─────────────────────────────────────────────────
+  // ── MOVER AL RIVAL ────────────────────────────────────────────────────────
   const playToRivalPile = useCallback((card, source, sourceIndex, pileType) => {
     const s = stateRef.current;
-    if (!HUMAN_PHASES.includes(s.phase)) return;
+    if (s.phase !== GAME_PHASES.HUMAN_TURN) return;
 
-    // El jugador puede mover libremente — el rival puede declarar Stop si ignora obligatorias
-    // Si hay stop valido pendiente, el primer movimiento DEBE ser el obligatorio
-    if (s.stopDeclared && s.stopValid && s.mandatoryMoves && s.mandatoryMoves.length > 0) {
-      // Cualquier jugada obligatoria es valida — el orden no importa
-      const hasAnyObligation = s.mandatoryMoves.some(m => m.type === "rival");
-      const isObligatory = s.mandatoryMoves.some(m => m.card && m.card.id === card.id && m.type === "rival");
-      if (hasAnyObligation && !isObligatory) {
-        setState(prev => {
-          const ns = cloneState(prev);
-          for (let i = 0; i < 3; i++) {
-            if (ns.human.talon.length === 0) break;
-            ns.human.crapette.push({ ...ns.human.talon.pop(), faceUp: false });
-          }
-          return {
-            ...ns,
-            phase: GAME_PHASES.AI_TURN,
-            currentPlayer: "ai",
-            stopDeclared: false,
-            stopValid: null,
-            stopMessage: "Stop fallido — no hiciste la jugada obligatoria — 3 cartas de castigo",
-            statusMessage: "Stop fallido — turno de la IA",
-            crapetteUsedThisTurn: false,
-          };
-        });
-        return;
-      }
-    }
+    const valid = pileType === 'discard'
+      ? canPlayToRivalDiscard(card, s.ai.discard)
+      : canPlayToRivalCrapette(card, s.ai.crapette);
+    if (!valid) return;
+
+    if (!checkStopCompliance(s, card, 'rival')) return;
 
     const ns = cloneState(s);
-    removeFromSource(ns, source, sourceIndex, "human");
+    removeHumanCard(ns, source);
 
-    if (pileType === "discard") ns.ai.discard.push({ ...card, faceUp: true });
-    else if (pileType === "crapette") {
-      ns.ai.crapette.push({ ...card, faceUp: true });
-      ns.ai.crapette = revealCrapette(ns.ai.crapette);
+    if (pileType === 'discard') {
+      ns.ai = { ...ns.ai, discard: [...ns.ai.discard, { ...card, faceUp: true }] };
+    } else {
+      const arr = [...ns.ai.crapette, { ...card, faceUp: true }];
+      if (arr.length > 0) arr[arr.length - 1] = { ...arr[arr.length - 1], faceUp: true };
+      ns.ai = { ...ns.ai, crapette: arr };
     }
 
-    const canUseCrapette = !ns.crapetteUsedThisTurn;
-    ns.mandatoryMoves = calcMandatory(ns, "human", canUseCrapette);
-    ns.statusMessage = "Carta al rival";
-    const winnerRival = checkVictory(ns);
-    if (winnerRival) { update({ ...ns, phase: GAME_PHASES.GAME_OVER, winner: winnerRival }, { type: pileType, card, source }); return; }
+    ns.mandatoryMoves = calcMandatory(ns);
+    ns.statusMessage = 'Carta al rival';
+
+    const winner = checkVictory(ns);
+    if (winner) {
+      update({ ...ns, phase: GAME_PHASES.GAME_OVER, winner }, { type: pileType, card });
+      return;
+    }
     update(ns, { type: pileType, card, source });
   }, [update]);
 
-  // ── Voltear carta del talon ──────────────────────────────────────────────
+  // ── VOLTEAR TALON ─────────────────────────────────────────────────────────
   const flipTalon = useCallback(() => {
     const s = stateRef.current;
-    if (!HUMAN_PHASES.includes(s.phase)) return;
-
-    // El jugador puede voltear talon libremente — el rival puede declarar Stop si ignora obligatorias
+    if (s.phase !== GAME_PHASES.HUMAN_TURN) return;
 
     const ns = cloneState(s);
 
-    if (ns.human.flippedCard) {
-      const card = ns.human.flippedCard;
-      ns.human.discard.push(card);
-      ns.human.flippedCard = null;
-      ns.phase = GAME_PHASES.AI_TURN;
-      ns.currentPlayer = "ai";
-      ns.crapetteUsedThisTurn = false;
+    // Si ya hay carta volteada: descartarla y pasar turno
+    if (ns.human.flipped) {
+      const card = ns.human.flipped;
+      ns.human = {
+        ...ns.human,
+        discard: [...ns.human.discard, { ...card, faceUp: true }],
+        flipped: null,
+      };
+      ns.phase         = GAME_PHASES.AI_TURN;
+      ns.currentPlayer = 'ai';
       ns.mandatoryMoves = [];
-      ns.statusMessage = "Turno de la IA";
-      update(ns, { type: "discard", card });
+      ns.statusMessage  = 'Turno de la IA';
+      update(ns, { type: 'discard', card });
       return;
     }
 
+    // Reconstruir talon desde descarte si está vacío
     if (ns.human.talon.length === 0) {
-      const rebuilt = rebuildTalon(ns.human);
-      ns.human.talon = rebuilt.talon;
-      ns.human.discard = rebuilt.discard;
+      const rebuilt = rebuildTalon(ns.human, PILES.HUMAN_TALON);
+      ns.human = rebuilt;
     }
-    if (ns.human.talon.length === 0) return;
+    if (ns.human.talon.length === 0) return; // no hay cartas
 
-    const talonCard = ns.human.talon[ns.human.talon.length - 1];
-    ns.human.talon = ns.human.talon.slice(0, -1);
-    const card = { ...talonCard, faceUp: true };
-    ns.human.flippedCard = { ...card };
+    // Voltear carta superior del talon
+    const talonArr  = [...ns.human.talon];
+    const rawCard   = talonArr.pop();
+    const card      = { ...rawCard, faceUp: true, pile: PILES.HUMAN_FLIPPED, pos: 0 };
+    ns.human = { ...ns.human, talon: talonArr, flipped: card };
+
+    // Una vez volteado el talon, el crapette queda bloqueado este turno
     ns.crapetteUsedThisTurn = true;
 
-    // Al voltear talon, solo es obligatorio si la carta va a fundacion
-    // Las casas vacias NO generan stop aqui — el jugador puede llenarlas con esta carta
-    const fKey = canPlayToFoundation(card, ns.foundations);
-    ns.mandatoryMoves = fKey
-      ? [{ type: "foundation", card, source: "flipped", target: fKey, reason: card.rank + " debe ir a la fundacion" }]
+    // Solo es obligatorio si la carta va directamente a fundación
+    const fId = canPlayToFoundation(card, ns.foundations);
+    ns.mandatoryMoves = fId
+      ? [{ type: 'foundation', card, fromPile: PILES.HUMAN_FLIPPED, toPile: fId }]
       : [];
-    ns.statusMessage = fKey ? "Carta del talon — debe ir a la fundacion!" : "Carta volteada — jugala o descartala";
-    update(ns, { type: "flip", card });
+    ns.statusMessage = fId
+      ? `${card.rank} del talón — debe ir a fundación!`
+      : 'Carta volteada — jugala o descártala';
+
+    update(ns, { type: 'flip', card });
   }, [update]);
 
-  // ── Descartar carta volteada ─────────────────────────────────────────────
+  // ── DESCARTAR CARTA VOLTEADA (pasar turno explícito) ─────────────────────
   const discardFlipped = useCallback(() => {
     const s = stateRef.current;
-    if (!HUMAN_PHASES.includes(s.phase)) return;
-    if (!s.human.flippedCard) return;
+    if (s.phase !== GAME_PHASES.HUMAN_TURN) return;
+    if (!s.human.flipped) return;
 
     const ns = cloneState(s);
-    const card = ns.human.flippedCard;
-    ns.human.discard.push({ ...card, faceUp: true });
-    ns.human.flippedCard = null;
-    ns.phase = GAME_PHASES.AI_TURN;
-    ns.currentPlayer = "ai";
-    ns.crapetteUsedThisTurn = false;
-    ns.mandatoryMoves = [];
+    const card = ns.human.flipped;
+    ns.human = {
+      ...ns.human,
+      discard: [...ns.human.discard, { ...card, faceUp: true }],
+      flipped: null,
+    };
 
-    // Verificar obligatorios al pasar el turno
-    if (ns.humanHasPlayed) {
-      const pending = getMandatoryMoves(ns.human, ns.houses, ns.foundations, false);
+    // Verificar si el humano dejó jugadas obligatorias sin hacer
+    const pending = getMandatoryMoves(ns.human, ns.houses, ns.foundations, ns.aiLevel, true);
 
-      // 1. Cartas que podian ir directo a fundacion — siempre es stop
-      const foundationPending = pending.filter(m => m.type === "foundation");
-      if (foundationPending.length > 0) {
-        ns.stopDeclared = true;
-        ns.stopValid = true;
-        ns.stopMessage = "✋ Stop — No enviaste una carta a su fundación";
-        ns.statusMessage = "Stop — la IA toma el turno";
-        update(ns, { type: "discard", card });
-        return;
-      }
-
-      // 2. Casa vacia — solo es stop si el jugador tenia cartas en crapette
-      // (la carta del talon se acaba de descartar, no cuenta como opcion)
-      const emptyPending = pending.filter(m => m.type === "fill_empty_casa");
-      if (emptyPending.length > 0 && ns.human.crapette.length > 0) {
-        ns.stopDeclared = true;
-        ns.stopValid = true;
-        ns.stopMessage = "✋ Stop — No llenaste la casa vacía";
-        ns.statusMessage = "Stop — la IA toma el turno";
-        update(ns, { type: "discard", card });
-        return;
-      }
+    if (pending.some(m => m.type === 'foundation')) {
+      ns.stopDeclared  = true;
+      ns.stopValid     = true;
+      ns.stopMessage   = '✋ Stop — No enviaste una carta a su fundación';
+      ns.statusMessage = 'Stop — la IA toma el turno';
+      ns.phase         = GAME_PHASES.AI_TURN;
+      ns.currentPlayer = 'ai';
+      ns.mandatoryMoves = [];
+      update(ns, { type: 'discard', card });
+      return;
     }
 
-    ns.stopDeclared = false;
-    ns.stopValid = null;
-    ns.stopMessage = "";
-    ns.statusMessage = "Turno de la IA";
-    update(ns, { type: "discard", card });
+    if (pending.some(m => m.type === 'fill_empty') && ns.human.crapette.length > 0) {
+      ns.stopDeclared  = true;
+      ns.stopValid     = true;
+      ns.stopMessage   = '✋ Stop — No llenaste la casa vacía';
+      ns.statusMessage = 'Stop — la IA toma el turno';
+      ns.phase         = GAME_PHASES.AI_TURN;
+      ns.currentPlayer = 'ai';
+      ns.mandatoryMoves = [];
+      update(ns, { type: 'discard', card });
+      return;
+    }
+
+    ns.stopDeclared  = false;
+    ns.stopValid     = null;
+    ns.stopMessage   = '';
+    ns.phase         = GAME_PHASES.AI_TURN;
+    ns.currentPlayer = 'ai';
+    ns.mandatoryMoves = [];
+    ns.statusMessage  = 'Turno de la IA';
+    ns.crapetteUsedThisTurn = false;
+    update(ns, { type: 'discard', card });
   }, [update]);
 
-  // ── Turno de la IA ───────────────────────────────────────────────────────
+  // ── TURNO DE LA IA ────────────────────────────────────────────────────────
   const runAITurn = useCallback(() => {
     const s = stateRef.current;
-    if (!AI_PHASES.includes(s.phase) && s.phase !== GAME_PHASES.AI_TURN) return;
+    if (s.phase !== GAME_PHASES.AI_TURN) return;
 
-    // ── Detectar si el humano ignoró jugadas obligatorias ─────────────────
-    // Obligatorios se verifican en discardFlipped al pasar el turno
-
-    const ns = cloneState(s);
-    const move = getAIMove(ns.ai, ns.human, ns.houses, ns.foundations, ns.aiLevel);
+    const move = getAIMove(s);
 
     if (move) {
-      // Aplicar el movimiento INMEDIATAMENTE al estado
-      let newState = applyAIMove(ns, move);
-      // Si falla, recalcular con historial limpio y estado fresco
+      const newState = applyAIMove(s, move);
       if (!newState) {
-        resetAIHistory();
-        const ns2 = cloneState(stateRef.current);
-        const move2 = getAIMove(ns2.ai, ns2.human, ns2.houses, ns2.foundations, ns2.aiLevel);
-        if (!move2) return;
-        newState = applyAIMove(ns2, move2);
-        if (!newState) return;
-      }
-
-      // Actualizar estado real de inmediato — sin esperar animacion
-      const winner = checkVictory(newState);
-      if (winner) {
-        update({ ...newState, phase: GAME_PHASES.GAME_OVER, winner }, move);
+        // Fallo al aplicar — reiniciar sesión e intentar una vez más
+        resetAITurnSession();
+        const move2 = getAIMove(s);
+        if (!move2) { passAITurn(s); return; }
+        const ns2 = applyAIMove(s, move2);
+        if (!ns2) { passAITurn(s); return; }
+        finishAIMove(ns2, move2);
         return;
       }
-      update({ ...newState, statusMessage: "IA: " + move.card.rank + " de " + move.card.suit }, move);
-
-      // Animacion visual — no afecta el estado del juego
-      setAnnouncedMove(move);
-      setFlyingCard({ ...move });
-      setTimeout(() => {
-        setAnnouncedMove(null);
-        setFlyingCard(null);
-      }, 1500);
+      finishAIMove(newState, move);
       return;
     }
 
-    // Sin jugadas — voltear talon o pasar turno
-    if (ns.ai.flippedCard) {
-      const card = ns.ai.flippedCard;
-      ns.ai.discard.push(card);
-      ns.ai.flippedCard = null;
-      ns.phase = GAME_PHASES.HUMAN_TURN;
-      ns.currentPlayer = "human";
-      ns.crapetteUsedThisTurn = false;
-      ns.mandatoryMoves = calcMandatory(ns, "human", true);
-      ns.stopDeclared = false;
-      ns.stopValid = null;
-      ns.stopMessage = "";
-      ns.statusMessage = "Tu turno";
-      resetAIHistory();
-      update(ns, { type: "discard", card, player: "ai" });
+    // Sin jugadas — voltear talon o pasar
+    passAITurn(s);
+  }, [update]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Aplicar resultado de jugada IA al estado y animar
+  const finishAIMove = (newState, move) => {
+    const winner = checkVictory(newState);
+    if (winner) {
+      update({ ...newState, phase: GAME_PHASES.GAME_OVER, winner }, move);
       return;
+    }
+    update(
+      { ...newState, statusMessage: `IA: ${move.card.rank} → pila ${move.toPile}` },
+      move,
+    );
+    // Animación visual (no afecta estado)
+    setAnnouncedMove(move);
+    setFlyingCard({ ...move });
+    setTimeout(() => {
+      setAnnouncedMove(null);
+      setFlyingCard(null);
+    }, stateRef.current.aiSpeed ?? 1000);
+  };
+
+  // Pasar turno de la IA (sin jugadas)
+  const passAITurn = (s) => {
+    const ns = cloneState(s);
+
+    // Si hay carta volteada: descartarla
+    if (ns.ai.flipped) {
+      const card = ns.ai.flipped;
+      ns.ai = { ...ns.ai, flipped: null, discard: [...ns.ai.discard, { ...card, faceUp: true }] };
+      ns.phase         = GAME_PHASES.HUMAN_TURN;
+      ns.currentPlayer = 'human';
+      ns.crapetteUsedThisTurn = false;
+      ns.mandatoryMoves = calcMandatory(ns);
+      ns.stopDeclared  = false;
+      ns.stopValid     = null;
+      ns.stopMessage   = '';
+      ns.statusMessage = 'Tu turno';
+      resetAITurnSession();
+      update(ns, { type: 'discard', card, player: 'ai' });
+      return;
+    }
+
+    // Voltear talon de la IA
+    if (ns.ai.talon.length === 0) {
+      const rebuilt = rebuildTalon(ns.ai, PILES.AI_TALON);
+      ns.ai = rebuilt;
     }
 
     if (ns.ai.talon.length === 0) {
-      const rebuilt = rebuildTalon(ns.ai);
-      ns.ai.talon = rebuilt.talon;
-      ns.ai.discard = rebuilt.discard;
-    }
-
-    if (ns.ai.talon.length === 0) {
-      ns.phase = GAME_PHASES.HUMAN_TURN;
-      ns.currentPlayer = "human";
+      // IA sin cartas: pasar directamente
+      ns.phase         = GAME_PHASES.HUMAN_TURN;
+      ns.currentPlayer = 'human';
       ns.crapetteUsedThisTurn = false;
-      ns.mandatoryMoves = calcMandatory(ns, "human", true);
-      ns.stopDeclared = false;
-      ns.stopValid = null;
-      ns.stopMessage = "";
-      ns.statusMessage = "Tu turno";
-      update(ns, { type: "pass" });
+      ns.mandatoryMoves = calcMandatory(ns);
+      ns.stopDeclared  = false;
+      ns.stopValid     = null;
+      ns.stopMessage   = '';
+      ns.statusMessage = 'Tu turno';
+      resetAITurnSession();
+      update(ns, { type: 'pass' });
       return;
     }
 
-    const talonCard = ns.ai.talon[ns.ai.talon.length - 1];
-    ns.ai.talon = ns.ai.talon.slice(0, -1);
-    const card = { ...talonCard, faceUp: true };
-    ns.ai.flippedCard = { ...card };
-    update({ ...ns, statusMessage: "IA jugando..." }, { type: "flip", card: { ...card }, player: "ai" });
-  }, [update]);
+    const talonArr = [...ns.ai.talon];
+    const rawCard  = talonArr.pop();
+    const card     = { ...rawCard, faceUp: true, pile: PILES.AI_FLIPPED, pos: 0 };
+    ns.ai = { ...ns.ai, talon: talonArr, flipped: card };
+    update({ ...ns, statusMessage: 'IA jugando...' }, { type: 'flip', card, player: 'ai' });
+  };
 
-  // ── Declarar Stop (humano presiona tecla durante turno IA) ───────────────
+  // ── DECLARAR STOP (humano durante turno IA) ───────────────────────────────
   const declareStop = useCallback(() => {
     const s = stateRef.current;
-    if (!AI_PHASES.includes(s.phase) && s.phase !== GAME_PHASES.AI_TURN) return;
+    if (s.phase !== GAME_PHASES.AI_TURN) return;
 
-    const aiMandatory = getMandatoryMoves(s.ai, s.houses, s.foundations, !s.crapetteUsedThisTurn);
+    const aiMandatory = getMandatoryMoves(s.ai, s.houses, s.foundations, s.aiLevel, false);
 
     if (aiMandatory.length > 0) {
       setState(prev => ({
         ...prev,
-        phase: GAME_PHASES.HUMAN_TURN,
-        currentPlayer: "human",
-        stopValid: true,
-        stopDeclared: true,
-        stopMessage: "Stop valido — haz la jugada obligatoria",
+        phase:         GAME_PHASES.HUMAN_TURN,
+        currentPlayer: 'human',
+        stopValid:     true,
+        stopDeclared:  true,
+        stopMessage:   'Stop válido — haz la jugada obligatoria',
         crapetteUsedThisTurn: false,
-        mandatoryMoves: getMandatoryMoves(prev.human, prev.houses, prev.foundations, true),
-        statusMessage: "Stop valido — tu turno",
+        mandatoryMoves: getMandatoryMoves(prev.human, prev.houses, prev.foundations, prev.aiLevel, true),
+        statusMessage: 'Stop válido — tu turno',
       }));
     } else {
       setState(prev => {
-        const newHuman = applyStopPenalty(prev.human);
+        const penalized = applyStopPenalty(prev.human, PILES.HUMAN_CRAPETTE);
         return {
           ...prev,
-          human: newHuman,
-          stopValid: false,
+          human:        penalized,
+          stopValid:    false,
           stopDeclared: false,
-          stopMessage: "✋ Stop inválido — No había jugada obligatoria — 3 cartas de castigo",
-          statusMessage: "Stop invalido — continua la IA",
+          stopMessage:  '✋ Stop inválido — no había jugada obligatoria — 3 cartas de castigo',
+          statusMessage: 'Stop inválido — continúa la IA',
         };
       });
     }
   }, []);
 
-  // ── Stop automatico (IA detecta que humano toco carta incorrecta) ─────────
-  const triggerAutoStop = useCallback(() => {
-    // Mostrar mensaje de stop primero, luego pasar a la IA despues de 2 segundos
-    setState(prev => ({
-      ...prev,
-      phase: GAME_PHASES.HUMAN_TURN, // mantener fase humano para mostrar mensaje
-      stopValid: true,
-      stopDeclared: true,
-      stopMessage: "✋ Stop — Tocaste carta sin cumplir jugadas obligatorias",
-      statusMessage: "Stop automatico — la IA continua en 2 segundos",
-      crapetteUsedThisTurn: false,
-    }));
-    setTimeout(() => {
-      setState(prev => ({
-        ...prev,
-        phase: GAME_PHASES.AI_TURN,
-        currentPlayer: "ai",
-        stopMessage: "",
-        statusMessage: "Turno de la IA",
-      }));
-    }, 2000);
-  }, []);
-
-  // ── Reiniciar ────────────────────────────────────────────────────────────
+  // ── REINICIAR ─────────────────────────────────────────────────────────────
   const resetGame = useCallback(() => {
+    resetAITurnSession();
     setState(createInitialState(config));
-    setHistory(createHistory());
     setLastMove(null);
     setAnnouncedMove(null);
     setFlyingCard(null);
   }, [config]);
 
+  // ── Verificar cumplimiento de stop ───────────────────────────────────────
+  // Retorna false y aplica penalidad si hay stop válido y el movimiento no lo cumple.
+  function checkStopCompliance(s, card, moveType) {
+    if (!s.stopDeclared || !s.stopValid) return true;
+    if (!s.mandatoryMoves || s.mandatoryMoves.length === 0) return true;
+
+    const isObligatory = s.mandatoryMoves.some(
+      m => m.card?.id === card.id && m.type === moveType
+    );
+    if (isObligatory) return true;
+
+    // Penalidad: 3 cartas de talon al crapette, pasar turno a IA
+    setState(prev => {
+      const ns = cloneState(prev);
+      for (let i = 0; i < 3 && ns.human.talon.length > 0; i++) {
+        const c = ns.human.talon.pop();
+        ns.human.crapette.push({ ...c, faceUp: false, pile: PILES.HUMAN_CRAPETTE });
+      }
+      return {
+        ...ns,
+        phase:         GAME_PHASES.AI_TURN,
+        currentPlayer: 'ai',
+        stopDeclared:  false,
+        stopValid:     null,
+        stopMessage:   'Stop fallido — no hiciste la jugada obligatoria — 3 cartas de castigo',
+        statusMessage: 'Stop fallido — turno de la IA',
+        crapetteUsedThisTurn: false,
+        mandatoryMoves: [],
+      };
+    });
+    return false;
+  }
+
   return {
-    state, history, lastMove, announcedMove, flyingCard, triggerAutoStop,
-    playToFoundation, playToHouse, playToRivalPile,
-    flipTalon, discardFlipped,
-    runAITurn, declareStop, resetGame,
+    state,
+    lastMove,
+    announcedMove,
+    flyingCard,
+    playToFoundation,
+    playToHouse,
+    playToRivalPile,
+    flipTalon,
+    discardFlipped,
+    runAITurn,
+    declareStop,
+    resetGame,
   };
 }

@@ -1,396 +1,487 @@
-// Board.jsx - Tablero con casas compartidas del tablero
+// Board.jsx — Tablero principal de Banca Rusa
+// API nueva: pilas numeradas 1-27, posición relativa
 
-import React, { useState, useCallback, useRef, useEffect } from "react";
-import { Card } from "./Card.jsx";
-import { useGameLoop } from "../hooks/useGameLoop.js";
-import { useStopDetection } from "../hooks/useStopDetection.js";
-import { useAI } from "../hooks/useAI.js";
-import { canPlayToFoundation, getMandatoryMoves, canPlayToRivalCrapette, canPlayToRivalDiscard } from "../engine/rules.js";
-import { GAME_PHASES } from "../engine/gameState.js";
-import "../styles/Board.css";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Card } from './Card.jsx';
+import { useGameLoop } from '../hooks/useGameLoop.js';
+import { useAI } from '../hooks/useAI.js';
+import { useStopDetection } from '../hooks/useStopDetection.js';
 
-const SUIT_SYMBOLS = { spades: "♠", hearts: "♥", diamonds: "♦", clubs: "♣" };
-const SUIT_COLORS  = { spades: "black", hearts: "red", diamonds: "red", clubs: "black" };
-const SUITS = ["spades", "hearts", "diamonds", "clubs"];
+import {
+  PILES, HOUSE_PILES, SUIT_FOUNDATIONS, SUIT_SYMBOL,
+  cardLabel, rankDisplay,
+} from '../engine/deck.js';
+import {
+  topCard, GAME_PHASES,
+} from '../engine/gameState.js';
+import {
+  canPlayToFoundation, canPlayToHouse,
+  canPlayToRivalDiscard, canPlayToRivalCrapette,
+} from '../engine/rules.js';
 
-export function Board({ config, onReset, onDashboard, onExit }) {
+import '../styles/Board.css';
+import '../styles/Card.css';
+import '../styles/PlayerZone.css';
+import '../styles/Foundation.css';
+import '../styles/House.css';
+
+// Fundaciones agrupadas por palo para el render
+const FOUNDATION_ROWS = [
+  { suit: 'P', ids: [PILES.FOUND_SPADES_A,   PILES.FOUND_SPADES_B],   color: 'black' },
+  { suit: 'C', ids: [PILES.FOUND_HEARTS_A,   PILES.FOUND_HEARTS_B],   color: 'red'   },
+  { suit: 'D', ids: [PILES.FOUND_DIAMONDS_A, PILES.FOUND_DIAMONDS_B], color: 'red'   },
+  { suit: 'T', ids: [PILES.FOUND_CLUBS_A,    PILES.FOUND_CLUBS_B],    color: 'black' },
+];
+
+export function Board({ config, onReset }) {
   const {
-    state, announcedMove, flyingCard: flyingCardMove, triggerAutoStop,
-    playToFoundation, playToHouse, playToRivalPile, flipTalon, discardFlipped,
+    state, lastMove, announcedMove, flyingCard,
+    playToFoundation, playToHouse, playToRivalPile,
+    flipTalon, discardFlipped,
     runAITurn, declareStop, resetGame,
   } = useGameLoop(config);
 
-  const [aiSpeed, setAiSpeed] = useState(config.aiSpeed || 3000);
-  const [showStop, setShowStop] = useState(false);
-  const [selected, setSelected] = useState(null);
-  const flyFromRectRef = useRef(null);
-  const [flyingCard, setFlyingCard] = useState(null);
-
-  useAI(state.phase, aiSpeed, runAITurn, state.aiLevel);
+  useAI(state.phase, state.aiSpeed, runAITurn, state.aiLevel);
   useStopDetection(state.phase, declareStop);
 
-  // Mostrar STOP cuando stopValid se activa
-  const prevStopRef = React.useRef(false);
-  React.useEffect(() => {
+  // ── Selección de carta ──────────────────────────────────────────────────
+  // selected: { card, source, fromPile }
+  // source: 'crapette' | 'flipped' | 'discard' | 'house'
+  // fromPile: pile ID (para houses) o null
+  const [selected, setSelected] = useState(null);
+
+  // Limpiar selección cuando cambia el turno
+  useEffect(() => { setSelected(null); }, [state.phase]);
+
+  const isHumanTurn = state.phase === GAME_PHASES.HUMAN_TURN;
+
+  // ── Stop explosión visual ───────────────────────────────────────────────
+  const [showStopExplosion, setShowStopExplosion] = useState(false);
+  const prevStopRef = useRef(false);
+  useEffect(() => {
     if (state.stopValid && !prevStopRef.current) {
-      setShowStop(true);
-      setTimeout(() => setShowStop(false), 2500);
+      setShowStopExplosion(true);
+      setTimeout(() => setShowStopExplosion(false), 1200);
     }
     prevStopRef.current = state.stopValid || false;
   }, [state.stopValid]);
 
-  // Capturar posicion origen cuando IA anuncia jugada
-  useEffect(() => {
-    if (announcedMove) {
-      const sourceSlot = announcedMove.source === "crapette" ? "crapette-ai"
-        : announcedMove.source === "flipped" ? "flipped-ai"
-        : announcedMove.source === "house" ? "house-" + announcedMove.houseIndex
-        : null;
-      if (sourceSlot) {
-        const fromEl = document.querySelector('[data-slot="' + sourceSlot + '"]');
-        if (fromEl) flyFromRectRef.current = fromEl.getBoundingClientRect();
+  // ── Highlight del destino anunciado por IA ──────────────────────────────
+  const getHighlightedSlot = () => {
+    if (!announcedMove) return null;
+    return announcedMove.toPile;
+  };
+  const highlightedPile = getHighlightedSlot();
+
+  // ── Seleccionar carta ───────────────────────────────────────────────────
+  const select = (card, source, fromPile) => {
+    if (!isHumanTurn) return;
+    if (selected?.card?.id === card.id && selected?.fromPile === fromPile) {
+      setSelected(null); // deselect
+      return;
+    }
+    setSelected({ card, source, fromPile });
+  };
+
+  // ── Intentar jugar la carta seleccionada a un destino ─────────────────
+  const tryPlayTo = useCallback((targetPile) => {
+    if (!selected || !isHumanTurn) return;
+    const { card, source, fromPile } = selected;
+
+    // ¿Fundación?
+    if (targetPile >= 9 && targetPile <= 16) {
+      const fId = canPlayToFoundation(card, state.foundations);
+      if (fId === targetPile) {
+        playToFoundation(card, source, fromPile);
+        setSelected(null);
+      }
+      return;
+    }
+
+    // ¿Casa?
+    if (targetPile >= 1 && targetPile <= 8) {
+      if (canPlayToHouse(card, state.houses[targetPile])) {
+        playToHouse(card, source, fromPile, targetPile);
+        setSelected(null);
+      }
+      return;
+    }
+
+    // ¿Descarte rival?
+    if (targetPile === PILES.AI_DISCARD) {
+      if (canPlayToRivalDiscard(card, state.ai.discard)) {
+        playToRivalPile(card, source, fromPile, 'discard');
+        setSelected(null);
+      }
+      return;
+    }
+
+    // ¿Crapette rival?
+    if (targetPile === PILES.AI_CRAPETTE) {
+      if (canPlayToRivalCrapette(card, state.ai.crapette)) {
+        playToRivalPile(card, source, fromPile, 'crapette');
+        setSelected(null);
       }
     }
-  }, [announcedMove]);
+  }, [selected, isHumanTurn, state, playToFoundation, playToHouse, playToRivalPile]);
 
-  // Animar vuelo cuando flyingCardMove se setea
-  useEffect(() => {
-    if (!flyingCardMove || !flyFromRectRef.current) return;
-    const targetSlot = flyingCardMove.type === "foundation" ? "foundation-" + flyingCardMove.target
-      : flyingCardMove.type === "rival_crapette" ? "crapette-human"
-      : flyingCardMove.type === "rival_discard" ? "discard-human"
-      : flyingCardMove.type === "house" ? "house-" + flyingCardMove.target
-      : null;
-    if (!targetSlot) return;
-    const toEl = document.querySelector('[data-slot="' + targetSlot + '"]');
-    if (!toEl) return;
-    const toRect = toEl.getBoundingClientRect();
-    setFlyingCard({ card: flyingCardMove.card, fromRect: flyFromRectRef.current, toRect });
-    flyFromRectRef.current = null;
-    setTimeout(() => setFlyingCard(null), 650);
-  }, [flyingCardMove]);
-
-  const isHumanTurn = state.currentPlayer === "human";
-
-  // Slot destino iluminado cuando IA anuncia jugada
-  const highlightedSlot = announcedMove ? (
-    announcedMove.type === "foundation" && announcedMove.target ? "foundation-" + announcedMove.target
-    : announcedMove.type === "rival_crapette" ? "crapette-human"
-    : announcedMove.type === "rival_discard" ? "discard-human"
-    : announcedMove.type === "house" && announcedMove.target !== undefined ? "house-" + announcedMove.target
-    : null
-  ) : null;
-
-  // Detectar si carta esta levantada (anunciada por IA)
-  const isLifted = (card, source, houseIndex) => {
-    if (!announcedMove) return false;
-    if (announcedMove.card.id !== card.id) return false;
-    if (source && announcedMove.source !== source) return false;
-    return true;
-  };
-
-  // Verificar jugada obligatoria en tiempo real
-  const checkStopOnSelect = (card, source) => {
-    const canUseCrapette = !state.crapetteUsedThisTurn;
-    const mandatory = getMandatoryMoves(state.human, state.houses, state.foundations, canUseCrapette);
-    if (!mandatory || mandatory.length === 0) return false;
-
-    // Verificar si la carta seleccionada cumple ALGUNA jugada obligatoria
-    // No importa el orden — cualquier obligatoria es valida primero
-    const isFoundationMove = mandatory.some(m =>
-      m.type === "foundation" && m.card &&
-      m.card.rank === card.rank && m.card.suit === card.suit
-    );
-    const isFillMove = mandatory.some(m =>
-      m.type === "fill_empty_casa" &&
-      (source === "crapette" || source === "flipped" || source === "house")
-    );
-
-    // Si la carta cumple una obligatoria, permitir siempre
-    if (isFoundationMove || isFillMove) return false;
-
-    // Si hay obligatorias pendientes y esta carta no cumple ninguna, declarar stop
-    if (mandatory.length > 0) return true;
-
-    return false;
-  };
-
-  // Seleccionar carta
-  const select = (card, source, houseIndex) => {
+  // ── Handlers de click en destinos ──────────────────────────────────────
+  const handleHouseClick = (hId) => {
     if (!isHumanTurn) return;
-    // Crapette bloqueado si ya se volteo el talon este turno
-    if (source === "crapette" && state.crapetteUsedThisTurn) {
-      return;
-    }
-    if (checkStopOnSelect(card, source)) {
-      triggerAutoStop();
-      setSelected(null);
-      return;
-    }
-    if (selected && selected.card.id === card.id) {
-      setSelected(null);
-    } else {
-      setSelected({ card, source, houseIndex });
-    }
-  };
-
-  // Mover carta al rival
-  const moveToRivalPile = (pileType, pile) => {
-    if (!selected || !isHumanTurn) return;
-    const card = selected.card;
-    const canPlay = pileType === "crapette"
-      ? canPlayToRivalCrapette(card, pile)
-      : canPlayToRivalDiscard(card, pile);
-    if (canPlay) {
-      playToRivalPile(card, selected.source, selected.houseIndex, pileType);
-      setSelected(null);
-    }
-  };
-
-  // Mover carta a casa
-  const moveToHouse = (targetIndex) => {
-    if (!selected || !isHumanTurn) return;
-    playToHouse(selected.card, selected.source, selected.houseIndex, targetIndex);
-    setSelected(null);
-  };
-
-  // Mover carta a fundacion
-  const moveToFoundation = () => {
-    if (!selected || !isHumanTurn) return;
-    playToFoundation(selected.card, selected.source, selected.houseIndex);
-    setSelected(null);
-  };
-
-  // Click en carta de casa
-  const onHouseCardClick = (card, houseIndex) => {
-    if (!isHumanTurn) return;
+    const top = topCard(state.houses[hId]);
     if (selected) {
-      if (selected.card.id === card.id) { setSelected(null); return; }
-      playToHouse(selected.card, selected.source, selected.houseIndex, houseIndex);
-      setSelected(null);
-    } else {
-      select(card, "house", houseIndex);
+      tryPlayTo(hId);
+    } else if (top && top.pos === 0) {
+      select(top, 'house', hId);
     }
   };
 
-  // Render casa
-  const renderHouse = (pile, houseIndex, reverse = false) => {
-    const top = pile.length > 0 ? pile[pile.length - 1] : null;
-    const isTopSelected = selected && top && selected.card.id === top.id;
-    const cardWidth = 18;
-    const stackWidth = Math.max(70, (pile.length - 1) * cardWidth + 70);
-    const isHighlighted = highlightedSlot === "house-" + houseIndex;
-
-    return (
-      <div key={houseIndex}
-        data-slot={"house-" + houseIndex}
-        className={"house-slot" + (isHighlighted ? " house-slot--highlighted" : "")}
-        style={{ width: stackWidth + "px" }}
-        onClick={() => !top && moveToHouse(houseIndex)}>
-        {pile.length === 0 ? (
-          <div className={"house-slot__empty" + (selected ? " house-slot__empty--active" : "")}
-            onClick={() => moveToHouse(houseIndex)} />
-        ) : (
-          <div className="house-slot__stack" style={{ width: stackWidth + "px", position: "relative" }}>
-            {pile.map((card, ci) => {
-              const isTop = ci === pile.length - 1;
-              const maxOffset = (pile.length - 1) * cardWidth;
-              const left = reverse ? maxOffset - ci * cardWidth : ci * cardWidth;
-              return (
-                <div key={card.id} className="house-slot__card" style={{ left: left + "px", zIndex: ci + 1 }}>
-                  <Card
-                    card={card}
-                    selected={isTopSelected && isTop}
-                    lifted={isTop && isLifted(card, "house", houseIndex)}
-                    onClick={isTop ? () => onHouseCardClick(card, houseIndex) : undefined}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
+  const handleFoundationClick = (fId) => {
+    if (!isHumanTurn || !selected) return;
+    tryPlayTo(fId);
   };
 
-  // Render fundacion
-  const renderFoundation = (suit, owner) => {
-    const key = suit + "_" + owner;
-    const pile = state.foundations[key];
-    const top = pile.length > 0 ? pile[pile.length - 1] : null;
-    const isHighlighted = highlightedSlot === "foundation-" + key;
+  // ── Game Over ───────────────────────────────────────────────────────────
+  if (state.phase === GAME_PHASES.GAME_OVER) {
+    const winner = state.winner === 'human' ? '¡Ganaste!' : 'Ganó la IA';
     return (
-      <div key={key}
-        data-slot={"foundation-" + key}
-        className={"foundation-slot foundation-slot--" + SUIT_COLORS[suit] + (isHighlighted ? " foundation-slot--highlighted" : "")}
-        onClick={moveToFoundation}>
-        {top
-          ? <Card card={top} />
-          : <div className="foundation-slot__empty">{SUIT_SYMBOLS[suit]}</div>}
-        <span className="foundation-slot__count">{pile.length}</span>
-      </div>
-    );
-  };
-
-  // Render zona de pilas (crapette, descarte, talon)
-  const renderPileZone = (owner) => {
-    const ps = state[owner];
-    const isHuman = owner === "human";
-    const crapetteTop = ps.crapette.length > 0 ? ps.crapette[ps.crapette.length - 1] : null;
-    const discardTop  = ps.discard.length > 0  ? ps.discard[ps.discard.length - 1]   : null;
-    const canUseDiscard = ps.crapette.length === 0;
-
-    return (
-      <div className={"pile-zone pile-zone--" + owner}>
-        {/* Talon */}
-        <div className="pile-zone__item">
-          <div className="pile-zone__label">Talon ({ps.talon.length})</div>
-          {ps.flippedCard ? (
-            <div className="pile-zone__flipped" data-slot={"flipped-" + owner}>
-              <Card card={ps.flippedCard}
-                selected={selected?.source === "flipped" && isHuman}
-                lifted={!isHuman && isLifted(ps.flippedCard, "flipped")}
-                onClick={isHuman ? () => select(ps.flippedCard, "flipped", null) : undefined} />
-              {isHuman && (
-                <div className="pile-zone__rebuild-small" onClick={discardFlipped}>↺ descartar</div>
-              )}
-            </div>
-          ) : ps.talon.length > 0 ? (
-            <Card card={{ faceUp: false, id: "talon_" + owner }}
-              onClick={isHuman ? flipTalon : undefined} />
-          ) : ps.discard.length > 0 ? (
-            <div className="pile-zone__rebuild" onClick={isHuman ? flipTalon : undefined}>↺</div>
-          ) : (
-            <div className="pile-zone__empty">—</div>
-          )}
-        </div>
-
-        {/* Descarte */}
-        <div className={"pile-zone__item" + (isHuman && highlightedSlot === "discard-human" ? " pile-zone__item--highlighted" : "")}
-          data-slot={"discard-" + owner}
-          onClick={!isHuman && selected ? () => moveToRivalPile("discard", ps.discard) : undefined}>
-          <div className="pile-zone__label">Descarte ({ps.discard.length})</div>
-          {discardTop ? (
-            <div className={!canUseDiscard && isHuman ? "pile-zone__locked" : ""}>
-              <Card card={discardTop}
-                selected={selected?.source === "discard" && isHuman}
-                onClick={isHuman && canUseDiscard ? () => select(discardTop, "discard", null) : undefined} />
-            </div>
-          ) : (
-            <div className={"pile-zone__empty" + (!isHuman && selected ? " pile-zone__empty--active" : "")}>—</div>
-          )}
-        </div>
-
-        {/* Crapette */}
-        <div className={"pile-zone__item" + (isHuman && state.crapetteUsedThisTurn ? " pile-zone__locked" : "") + (isHuman && highlightedSlot === "crapette-human" ? " pile-zone__item--highlighted" : "")}
-          data-slot={"crapette-" + owner}
-          onClick={!isHuman && selected ? () => moveToRivalPile("crapette", ps.crapette) : undefined}>
-          <div className="pile-zone__label">Crapette ({ps.crapette.length})</div>
-          {crapetteTop ? (
-            <Card card={{ ...crapetteTop, faceUp: true }}
-              selected={selected?.source === "crapette" && isHuman}
-              lifted={!isHuman && isLifted(crapetteTop, "crapette")}
-              onClick={isHuman
-                ? () => select(crapetteTop, "crapette", null)
-                : selected ? () => moveToRivalPile("crapette", ps.crapette) : undefined} />
-          ) : (
-            <div className={"pile-zone__empty" + (!isHuman && selected ? " pile-zone__empty--active" : "")}
-              onClick={!isHuman && selected ? () => moveToRivalPile("crapette", ps.crapette) : undefined}>✓</div>
-          )}
+      <div className="board">
+        <div className="board__title">BANCA RUSA</div>
+        <div className="board__status">
+          <div className="board__gameover">{winner}</div>
+          <button className="board__btn" onClick={() => { resetGame(); onReset?.(); }}>
+            Nueva partida
+          </button>
         </div>
       </div>
     );
-  };
+  }
 
-  // Casas: 0-3 izquierda, 4-7 derecha
-  const leftHouses  = state.houses.slice(0, 4);
-  const rightHouses = state.houses.slice(4, 8);
+  // ── Render principal ────────────────────────────────────────────────────
+  const aiTurn = state.phase === GAME_PHASES.AI_TURN;
 
   return (
     <div className="board">
+      {/* Título */}
       <div className="board__title">BANCA RUSA</div>
-      {renderPileZone("ai")}
-      <div className="board__center">
-        <div className="board__houses board__houses--left">
-          {[...leftHouses].reverse().map((pile, ri) => {
-            const houseIndex = 3 - ri;
-            return renderHouse(pile, houseIndex, true);
-          })}
-        </div>
-        <div className="board__foundations">
-          {SUITS.map(suit => (
-            <div key={suit} className="foundation-row">
-              {renderFoundation(suit, "ai")}
-              {renderFoundation(suit, "human")}
-            </div>
-          ))}
-        </div>
-        <div className="board__houses board__houses--right">
-          {rightHouses.map((pile, ri) => renderHouse(pile, ri + 4))}
-        </div>
-      </div>
-      {renderPileZone("human")}
 
-      {/* Indicador de turno */}
-      <div className="board__turn-indicator">
-        <div className={"board__turn-badge" + (state.currentPlayer === "ai" ? " board__turn-badge--ai" : "")}>
-          {state.currentPlayer === "human" ? "Tu turno" : "IA jugando"}
-        </div>
-        {(state.phase === "ai_turn" || state.phase === "ai_crapette" || state.phase === "ai_talon") && (
-          <div style={{marginTop:"8px", textAlign:"center"}}>
-            <button onClick={declareStop} style={{
-              background:"#c0392b", color:"white", border:"2px solid #ff6b6b",
-              borderRadius:"8px", padding:"10px 20px", fontSize:"1.1em",
-              fontFamily:"Cinzel,serif", fontWeight:"700", cursor:"pointer",
-              display:"block", width:"100%", marginBottom:"6px"
-            }}>✋ STOP</button>
-
-          </div>
-        )}
-        {state.phase === "game_over" && (
-          <div className="board__turn-badge" style={{color:"#f5d070", borderColor:"#f5d070"}}>
-            {state.winner === "human" ? "Ganaste!" : "Gano la IA"}
-          </div>
-        )}
-      </div>
-
-      {/* STOP explosivo */}
-      {showStop && (
+      {/* Stop explosion */}
+      {showStopExplosion && (
         <div className="board__stop-explosion">
-          <div className="board__stop-comic"><span>¡STOP!</span></div>
+          <div className="board__stop-comic">✋</div>
         </div>
       )}
 
-      <div className="board__status">
-        <span className={"board__status-msg board__status-msg--" + state.currentPlayer}>
-          {state.statusMessage}
-        </span>
-        {state.stopMessage && (
-          <div className={"board__stop-feedback board__stop-feedback--" + (state.stopValid ? "valid" : "invalid")}>
-            {state.stopMessage}
-          </div>
-        )}
-        <div className="board__controls-row">
-          {/* Boton stop movido al turn indicator */}
-          <div className="board__controls">
-            <label className="board__ctrl-label">Velocidad IA</label>
-            <select className="board__ctrl-select" value={aiSpeed} onChange={e => setAiSpeed(Number(e.target.value))}>
-              <option value={8000}>Muy lento</option>
-              <option value={5000}>Lento</option>
-              <option value={3000}>Normal</option>
-              <option value={1500}>Rapido</option>
-              <option value={500}>Muy rapido</option>
-            </select>
-            <button className="board__btn" onClick={resetGame}>↺ Nueva partida</button>
-            <button className="board__btn board__btn--dashboard" onClick={onDashboard}>⚙ Dashboard</button>
-            <button className="board__btn board__btn--exit" onClick={onExit}>✕ Salir</button>
-          </div>
+      {/* Zona IA (arriba, volteada) */}
+      <PlayerZone
+        player="ai"
+        playerState={state.ai}
+        isHuman={false}
+        isActive={aiTurn}
+        selected={selected}
+        onRivalPileClick={isHumanTurn ? tryPlayTo : null}
+        highlightedPile={highlightedPile}
+      />
+
+      {/* Centro: casas izquierda + fundaciones + casas derecha */}
+      <div className="board__center">
+        {/* Casas IA: 1-4 (izquierda) */}
+        <div className="board__houses board__houses--left">
+          {[1, 2, 3, 4].map(hId => (
+            <HouseSlot
+              key={hId}
+              hId={hId}
+              pile={state.houses[hId]}
+              selected={selected}
+              highlighted={highlightedPile === hId}
+              onClick={() => handleHouseClick(hId)}
+            />
+          ))}
         </div>
-        {state.phase === "game_over" && (
-          <div className="board__gameover">
-            {state.winner === "human" ? "Ganaste!" : "Gano la IA"}
+
+        {/* Fundaciones */}
+        <div className="board__foundations">
+          {FOUNDATION_ROWS.map(({ suit, ids, color }) => (
+            <div className="foundation-row" key={suit}>
+              {ids.map(fId => (
+                <FoundationSlot
+                  key={fId}
+                  fId={fId}
+                  suit={suit}
+                  color={color}
+                  pile={state.foundations[fId]}
+                  highlighted={highlightedPile === fId}
+                  onClick={() => handleFoundationClick(fId)}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+
+        {/* Casas humano: 5-8 (derecha) */}
+        <div className="board__houses board__houses--right">
+          {[5, 6, 7, 8].map(hId => (
+            <HouseSlot
+              key={hId}
+              hId={hId}
+              pile={state.houses[hId]}
+              selected={selected}
+              highlighted={highlightedPile === hId}
+              onClick={() => handleHouseClick(hId)}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Status bar */}
+      <StatusBar
+        state={state}
+        isHumanTurn={isHumanTurn}
+        aiTurn={aiTurn}
+        onStop={declareStop}
+        onReset={() => { resetGame(); onReset?.(); }}
+      />
+
+      {/* Zona humano (abajo) */}
+      <PlayerZone
+        player="human"
+        playerState={state.human}
+        isHuman={true}
+        isActive={isHumanTurn}
+        selected={selected}
+        onSelect={select}
+        onFlipTalon={flipTalon}
+        onDiscardFlipped={discardFlipped}
+        highlightedPile={highlightedPile}
+      />
+
+      {/* Turno badge (esquina derecha) */}
+      <div className="board__turn-indicator">
+        <div className={`board__turn-badge${aiTurn ? ' board__turn-badge--ai' : ''}`}>
+          {aiTurn ? 'IA jugando…' : 'Tu turno'}
+        </div>
+        {state.stopMessage && (
+          <div className={`board__stop-badge`}>{state.stopMessage}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── PlayerZone ────────────────────────────────────────────────────────────────
+function PlayerZone({
+  player, playerState, isHuman, isActive,
+  selected, onSelect, onFlipTalon, onDiscardFlipped,
+  onRivalPileClick, highlightedPile,
+}) {
+  const crapetteTop = topCard(playerState.crapette);
+  const discardTop  = topCard(playerState.discard);
+  const talonTop    = topCard(playerState.talon);
+
+  const crapettePile = isHuman ? PILES.HUMAN_CRAPETTE : PILES.AI_CRAPETTE;
+  const discardPile  = isHuman ? PILES.HUMAN_DISCARD  : PILES.AI_DISCARD;
+
+  const isSelected = (card) =>
+    selected && card && selected.card.id === card.id;
+
+  const zoneClass = [
+    'player-zone',
+    isActive ? 'player-zone--active' : '',
+    !isHuman ? 'player-zone--ai'     : '',
+  ].filter(Boolean).join(' ');
+
+  return (
+    <div className={zoneClass}>
+      <div className="player-zone__header">
+        <span className="player-zone__label">{isHuman ? 'Tus cartas' : 'IA'}</span>
+        {isActive && <span className="player-zone__turn-badge">▶ jugando</span>}
+      </div>
+      <div className="player-zone__body">
+
+        {/* Talon — siempre primero para el humano */}
+        <div className="player-zone__pile">
+          <span className="player-zone__pile-label">
+            Talón ({playerState.talon.length})
+          </span>
+          {isHuman ? (
+            // Talón del humano: clickeable para voltear si no hay carta volteada
+            talonTop || playerState.discard.length > 0 ? (
+              <Card
+                card={talonTop
+                  ? { ...talonTop, faceUp: false }
+                  : { faceUp: false, suit: 'P', rank: 0, color: 'black', id: '__talon__' }}
+                onClick={!playerState.flipped ? onFlipTalon : undefined}
+              />
+            ) : (
+              <div className="player-zone__empty-pile">—</div>
+            )
+          ) : (
+            // Talón de la IA: siempre boca abajo
+            talonTop ? (
+              <Card card={{ ...talonTop, faceUp: false }} />
+            ) : (
+              <div className="player-zone__empty-pile">—</div>
+            )
+          )}
+        </div>
+
+        {/* Carta volteada — aparece entre talón y descarte */}
+        {isHuman && playerState.flipped && (
+          <div className="player-zone__pile">
+            <span className="player-zone__pile-label">Volteada</span>
+            <Card
+              card={playerState.flipped}
+              selected={isSelected(playerState.flipped)}
+              onClick={() => onSelect(playerState.flipped, 'flipped', PILES.HUMAN_FLIPPED)}
+            />
+            <div className="pile-zone__rebuild-small" onClick={onDiscardFlipped}>
+              ↺ descartar
+            </div>
           </div>
         )}
+
+        {/* Descarte */}
+        <div
+          className={[
+            'player-zone__pile',
+            highlightedPile === discardPile ? 'pile-zone__item--highlighted' : '',
+          ].join(' ')}
+        >
+          <span className="player-zone__pile-label">
+            Descarte ({playerState.discard.length})
+          </span>
+          {discardTop ? (
+            <Card
+              card={discardTop}
+              selected={isSelected(discardTop)}
+              onClick={
+                isHuman && onSelect && playerState.crapette.length === 0
+                  ? () => onSelect(discardTop, 'discard', discardPile)
+                  : (!isHuman && onRivalPileClick ? () => onRivalPileClick(discardPile) : undefined)
+              }
+            />
+          ) : (
+            <div className="player-zone__empty-pile">—</div>
+          )}
+        </div>
+
+        {/* Crapette — siempre al final */}
+        <div className="player-zone__pile">
+          <span className="player-zone__pile-label">
+            Crapette ({playerState.crapette.length})
+          </span>
+          {crapetteTop ? (
+            <Card
+              card={crapetteTop}
+              selected={isSelected(crapetteTop)}
+              onClick={isHuman && onSelect
+                ? () => onSelect(crapetteTop, 'crapette', crapettePile)
+                : (onRivalPileClick ? () => onRivalPileClick(crapettePile) : undefined)
+              }
+            />
+          ) : (
+            <div className="player-zone__empty-pile">♠</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── HouseSlot ─────────────────────────────────────────────────────────────────
+function HouseSlot({ hId, pile, selected, highlighted, onClick }) {
+  const top = topCard(pile);
+  const isSelected = selected && top && selected.card.id === top.id && selected.fromPile === hId;
+
+  const slotClass = [
+    'house-slot',
+    highlighted ? 'house-slot--highlighted' : '',
+  ].filter(Boolean).join(' ');
+
+  if (pile.length === 0) {
+    return (
+      <div className={slotClass} onClick={onClick}>
+        <div className={`house-slot__empty${highlighted ? ' house-slot__empty--active' : ''}`} />
+      </div>
+    );
+  }
+
+  // Offset vertical compacto para pilas largas
+  const offset = Math.min(18, Math.floor(72 / pile.length));
+  const stackHeight = 100 + (pile.length - 1) * offset;
+
+  return (
+    <div className={slotClass} onClick={onClick}>
+      <div className="house-slot__stack" style={{ height: stackHeight, position: 'relative' }}>
+        {pile.map((card, i) => (
+          <div
+            key={card.id}
+            className="house-slot__card"
+            style={{ top: i * offset, zIndex: i, position: 'absolute' }}
+          >
+            <Card
+              card={card}
+              selected={isSelected && i === pile.length - 1}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── FoundationSlot ────────────────────────────────────────────────────────────
+function FoundationSlot({ fId, suit, color, pile, highlighted, onClick }) {
+  const top = topCard(pile);
+
+  const slotClass = [
+    'foundation-slot',
+    `foundation-slot--${color}`,
+    highlighted ? 'foundation-slot--highlighted' : '',
+  ].filter(Boolean).join(' ');
+
+  return (
+    <div className={slotClass} onClick={onClick}>
+      {top ? (
+        <Card card={top} small />
+      ) : (
+        <div className="foundation-slot__empty">{SUIT_SYMBOL[suit]}</div>
+      )}
+      <span className="foundation-slot__count">{pile.length}/13</span>
+    </div>
+  );
+}
+
+// ── StatusBar ─────────────────────────────────────────────────────────────────
+function StatusBar({ state, isHumanTurn, aiTurn, onStop, onReset }) {
+  return (
+    <div className="board__status">
+      <div className={`board__status-msg board__status-msg--${isHumanTurn ? 'human' : 'ai'}`}>
+        {state.statusMessage}
+      </div>
+
+      {state.mandatoryMoves?.length > 0 && isHumanTurn && (
+        <div className="board__mandatory">
+          ⚠ Jugada obligatoria pendiente
+        </div>
+      )}
+
+      {state.stopMessage && (
+        <div className={`board__stop-feedback board__stop-feedback--${state.stopValid ? 'valid' : 'invalid'}`}>
+          {state.stopMessage}
+        </div>
+      )}
+
+      <div className="board__controls-row">
+        {aiTurn && (
+          <button className="board__btn board__btn--stop-big" onClick={onStop}>
+            ✋ STOP
+            <span className="board__btn--stop-hint">la IA cometió un error</span>
+          </button>
+        )}
+        <button className="board__btn board__btn--exit" onClick={onReset}>
+          Salir
+        </button>
       </div>
     </div>
   );
