@@ -160,8 +160,11 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
   cursor: pointer;
+  width: 60px;
+  height: 84px;
 }
 
 .foundation-slot__empty {
@@ -628,7 +631,8 @@
 }
 
 .foundation-slot--highlighted {
-  box-shadow: 0 0 0 4px #4caf50, 0 0 30px rgba(76,175,80,0.8) !important;
+  box-shadow: 0 0 0 3px #4caf50, 0 0 20px rgba(76,175,80,0.6) !important;
+  border-radius: 7px !important;
   animation: pulseGreen 0.8s ease-in-out infinite alternate;
 }
 

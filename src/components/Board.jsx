@@ -291,12 +291,12 @@ function PlayerZone({
   ].filter(Boolean).join(' ');
 
   return (
-    <div className={zoneClass}>
-      <div className="player-zone__header">
+    <div className={zoneClass} style={!isHuman ? { transform: 'rotate(180deg)' } : {}}>
+      <div className="player-zone__header" style={!isHuman ? { transform: 'rotate(180deg)' } : {}}>
         <span className="player-zone__label">{isHuman ? 'Tus cartas' : 'IA'}</span>
         {isActive && <span className="player-zone__turn-badge">▶ jugando</span>}
       </div>
-      <div className="player-zone__body">
+      <div className="player-zone__body" style={!isHuman ? { transform: 'rotate(180deg)' } : {}}>
 
         {/* Talon — siempre primero para el humano */}
         <div className="player-zone__pile">
@@ -447,7 +447,6 @@ function FoundationSlot({ fId, suit, color, pile, highlighted, onClick }) {
       ) : (
         <div className="foundation-slot__empty">{SUIT_SYMBOL[suit]}</div>
       )}
-      <span className="foundation-slot__count">{pile.length}/13</span>
     </div>
   );
 }
