@@ -1,66 +1,40 @@
-// Card.jsx — Carta individual con animaciones
+// Card.jsx — Componente de carta puro (solo display)
+import { SUIT_SYMBOL, rankDisplay } from '../engine/deck.js';
 
-import { useState } from "react";
-import "../styles/Card.css";
+export function Card({ card, selected, lifted, small, onClick }) {
+  if (!card) return null;
 
-const SUIT_SYMBOLS = {
-  spades:   "♠",
-  hearts:   "♥",
-  diamonds: "♦",
-  clubs:    "♣",
-};
+  const isBack = !card.faceUp;
+  const cls = [
+    'card',
+    isBack        ? 'card--back'     : '',
+    card.color === 'red' ? 'card--red' : 'card--black',
+    selected      ? 'card--selected' : '',
+    lifted        ? 'card--lifted'   : '',
+    small         ? 'card--small'    : '',
+  ].filter(Boolean).join(' ');
 
-export function Card({ card, onClick, draggable = false, onDragStart, selected = false, small = false, lifted = false }) {
-  const [flipped, setFlipped] = useState(false);
-
-  if (!card) return <div className={"card card--empty"}></div>;
-
-  const isRed = card.color === "red";
-  const symbol = SUIT_SYMBOLS[card.suit];
-
-  if (!card.faceUp) {
+  if (isBack) {
     return (
-      <div
-        className={["card", "card--back", small && "card--small", lifted && "card--lifted"].filter(Boolean).join(" ")}
-        onClick={onClick}
-        draggable={draggable}
-        onDragStart={onDragStart}
-      >
+      <div className={cls} onClick={onClick}>
         <div className="card__back-pattern" />
       </div>
     );
   }
 
+  const rankStr = rankDisplay(card.rank);
+  const suitStr = SUIT_SYMBOL[card.suit];
+
   return (
-    <div
-      className={[
-        "card",
-        isRed ? "card--red" : "card--black",
-        selected && "card--selected",
-        small && "card--small",
-        lifted && "card--lifted",
-        (lifted || selected) && "card--no-appear",
-      ].filter(Boolean).join(" ")}
-      onClick={onClick}
-      draggable={draggable}
-      onDragStart={onDragStart}
-    >
+    <div className={cls} onClick={onClick}>
       <div className="card__corner card__corner--top-left">
-        <span className="card__rank">{card.rank}</span>
-        <span className="card__suit">{symbol}</span>
+        <span className="card__rank">{rankStr}</span>
+        <span className="card__suit">{suitStr}</span>
       </div>
-      <div className="card__corner card__corner--top-right">
-        <span className="card__rank">{card.rank}</span>
-        <span className="card__suit">{symbol}</span>
-      </div>
-      <div className="card__center">{symbol}</div>
-      <div className="card__corner card__corner--bottom-left">
-        <span className="card__rank">{card.rank}</span>
-        <span className="card__suit">{symbol}</span>
-      </div>
+      <div className="card__center">{suitStr}</div>
       <div className="card__corner card__corner--bottom-right">
-        <span className="card__rank">{card.rank}</span>
-        <span className="card__suit">{symbol}</span>
+        <span className="card__rank">{rankStr}</span>
+        <span className="card__suit">{suitStr}</span>
       </div>
     </div>
   );
