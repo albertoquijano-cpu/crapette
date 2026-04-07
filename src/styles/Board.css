@@ -60,8 +60,8 @@
 }
 
 .pile-zone__empty {
-  width: 52px;
-  height: 75px;
+  width: 60px;
+  height: 85px;
   border-radius: 7px;
   border: 1.5px dashed rgba(201,168,76,0.2);
   display: flex;
@@ -72,8 +72,8 @@
 }
 
 .pile-zone__rebuild {
-  width: 52px;
-  height: 75px;
+  width: 60px;
+  height: 85px;
   border-radius: 7px;
   border: 1.5px solid rgba(201,168,76,0.4);
   background: rgba(201,168,76,0.08);
@@ -115,14 +115,14 @@
 .house-slot {
   position: relative;
   width: 70px;
-  height: 75px;
+  height: 85px;
   cursor: pointer;
   flex-shrink: 0;
 }
 
 .house-slot__empty {
-  width: 52px;
-  height: 75px;
+  width: 60px;
+  height: 85px;
   border-radius: 7px;
   border: 1.5px dashed rgba(201,168,76,0.2);
   background: rgba(0,0,0,0.1);
@@ -167,8 +167,8 @@
 }
 
 .foundation-slot__empty {
-  width: 44px;
-  height: 62px;
+  width: 48px;
+  height: 68px;
   border-radius: 6px;
   border: 1.5px dashed rgba(201,168,76,0.25);
   background: rgba(0,0,0,0.15);
@@ -445,14 +445,14 @@
 }
 
 .board__houses--left .house-slot {
-  width: 52px;
+  width: 60px;
   overflow: visible;
   position: relative;
 }
 
 .board__houses--left .house-slot__stack {
   position: relative;
-  width: 52px;
+  width: 60px;
   overflow: visible;
 }
 

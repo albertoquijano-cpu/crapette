@@ -2,8 +2,8 @@
 
 .card {
   position: relative;
-  width: 52px;
-  height: 75px;
+  width: 60px;
+  height: 85px;
   border-radius: 7px;
   border: 2px solid #333;
   background: var(--card-white);
@@ -68,19 +68,19 @@
 }
 
 .card__rank {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: bold;
   line-height: 1;
   margin-bottom: 1px;
 }
 
 .card__suit {
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1;
 }
 
 .card__center {
-  font-size: 26px;
+  font-size: 30px;
   text-align: center;
   line-height: 1;
   position: absolute;

@@ -24,6 +24,17 @@ import {
 } from '../engine/deck.js';
 
 // ── Hook principal ────────────────────────────────────────────────────────────
+// Convertir ID de fundacion numerica al key string que usa Board viejo
+function adaptFoundationKey(pileId) {
+  const map = {
+    9: 'spades_human', 10: 'spades_ai',
+    11: 'hearts_human', 12: 'hearts_ai',
+    13: 'diamonds_human', 14: 'diamonds_ai',
+    15: 'clubs_human', 16: 'clubs_ai',
+  };
+  return map[pileId] || null;
+}
+
 export function useGameLoop(config) {
   const [state, setState]             = useState(() => createInitialState(config));
   const [lastMove, setLastMove]       = useState(null);
@@ -315,9 +326,27 @@ export function useGameLoop(config) {
       { ...newState, statusMessage: `IA: ${move.card.rank} → pila ${move.toPile}` },
       move,
     );
-    // Animación visual (no afecta estado)
-    setAnnouncedMove(move);
-    setFlyingCard({ ...move });
+    // Animación visual — adaptar al formato que espera Board.jsx original
+    // Board viejo usa: source, houseIndex, target (en vez de fromPile, toPile)
+    const adaptedMove = {
+      ...move,
+      // source: donde viene la carta
+      source: move.fromPile >= 1 && move.fromPile <= 8 ? 'house'
+             : move.fromPile === 24 ? 'crapette'
+             : move.fromPile === 27 ? 'flipped'
+             : move.fromPile === 26 ? 'discard'
+             : 'crapette',
+      // houseIndex: indice de la casa origen (0-7) si viene de casa
+      houseIndex: (move.fromPile >= 1 && move.fromPile <= 8) ? move.fromPile - 1 : undefined,
+      // target: destino en formato viejo
+      target: move.toPile >= 1 && move.toPile <= 8 ? move.toPile - 1  // house index 0-7
+             : move.toPile >= 9 && move.toPile <= 16 ? adaptFoundationKey(move.toPile)  // foundation key
+             : move.toPile === 20 ? 'crapette-human'
+             : move.toPile === 22 ? 'discard-human'
+             : undefined,
+    };
+    setAnnouncedMove(adaptedMove);
+    setFlyingCard({ ...adaptedMove });
     setTimeout(() => {
       setAnnouncedMove(null);
       setFlyingCard(null);
