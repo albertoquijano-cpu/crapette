@@ -123,6 +123,7 @@
 /* Fix layout para iPad/desktop */
 .player-zone {
   flex-shrink: 0;
+  min-height: 0;
 }
 
 .player-zone__body {

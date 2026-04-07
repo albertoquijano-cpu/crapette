@@ -447,7 +447,6 @@ function FoundationSlot({ fId, suit, color, pile, highlighted, onClick }) {
       ) : (
         <div className="foundation-slot__empty">{SUIT_SYMBOL[suit]}</div>
       )}
-      <span className="foundation-slot__count">{pile.length}/13</span>
     </div>
   );
 }
