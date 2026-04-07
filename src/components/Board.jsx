@@ -13,6 +13,17 @@ import "../styles/Board.css";
 // ── Adaptador: convierte estado nuevo (pilas numeradas) al formato que espera este Board ──
 const SUIT_MAP = { P: 'spades', C: 'hearts', D: 'diamonds', T: 'clubs' };
 const SUIT_MAP_REV = { spades: 'P', hearts: 'C', diamonds: 'D', clubs: 'T' };
+const RANK_MAP_REV = { A: 1, J: 11, Q: 12, K: 13 };
+
+// Convierte carta adaptada (suits en ingles, rank string) de vuelta al formato del engine
+function unadaptCard(c) {
+  if (!c) return null;
+  const suit = SUIT_MAP_REV[c.suit] || c.suit;
+  const rank = typeof c.rank === 'string'
+    ? (RANK_MAP_REV[c.rank] || parseInt(c.rank))
+    : c.rank;
+  return { ...c, suit, rank };
+}
 
 const RANK_MAP = { 1:'A', 11:'J', 12:'Q', 13:'K' };
 
@@ -154,7 +165,7 @@ export function Board({ config, onReset, onDashboard, onExit }) {
   // Verificar jugada obligatoria en tiempo real
   const checkStopOnSelect = (card, source) => {
     const canUseCrapette = !state.crapetteUsedThisTurn;
-    const mandatory = getMandatoryMoves(state.human, rawState.houses, rawState.foundations, rawState.aiLevel, true);
+    const mandatory = getMandatoryMoves(rawState.human, rawState.houses, rawState.foundations, rawState.aiLevel, true);
     if (!mandatory || mandatory.length === 0) return false;
 
     // Verificar si la carta seleccionada cumple ALGUNA jugada obligatoria
@@ -200,9 +211,12 @@ export function Board({ config, onReset, onDashboard, onExit }) {
   const moveToRivalPile = (pileType, pile) => {
     if (!selected || !isHumanTurn) return;
     const card = selected.card;
+    // Usar unadaptCard para que el engine reciba suits en formato P/C/D/T
+    const rawCard = unadaptCard(card);
+    const rawPile = pile.map(unadaptCard);
     const canPlay = pileType === "crapette"
-      ? canPlayToRivalCrapette(card, pile)
-      : canPlayToRivalDiscard(card, pile);
+      ? canPlayToRivalCrapette(rawCard, rawPile)
+      : canPlayToRivalDiscard(rawCard, rawPile);
     if (canPlay) {
       playToRivalPile(card, selected.source, selected.houseIndex, pileType);
       setSelected(null);
