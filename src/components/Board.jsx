@@ -14,14 +14,23 @@ import "../styles/Board.css";
 const SUIT_MAP = { P: 'spades', C: 'hearts', D: 'diamonds', T: 'clubs' };
 const SUIT_MAP_REV = { spades: 'P', hearts: 'C', diamonds: 'D', clubs: 'T' };
 
+const RANK_MAP = { 1:'A', 11:'J', 12:'Q', 13:'K' };
+
 function adaptCard(c) {
   if (!c) return null;
   const suit = SUIT_MAP[c.suit] || c.suit;
+  // Convertir rank numerico (1-13) a string que espera el Board viejo
+  const rank = typeof c.rank === 'number'
+    ? (RANK_MAP[c.rank] || String(c.rank))
+    : c.rank;
   return {
     ...c,
     suit,
+    rank,
+    value: typeof c.rank === 'number' ? c.rank : c.value,
     color: ['hearts','diamonds'].includes(suit) ? 'red' : 'black',
     faceUp: c.faceUp ?? false,
+    id: c.id || (rank + suit[0].toUpperCase()),
   };
 }
 
