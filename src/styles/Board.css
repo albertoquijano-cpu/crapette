@@ -29,8 +29,8 @@
   display: flex;
   flex-direction: row;
   justify-content: center;
-  gap: 16px;
-  padding: 8px 12px;
+  gap: 12px;
+  padding: 4px 12px;
   background: rgba(0,0,0,0.2);
   border-radius: 10px;
   border: 1px solid rgba(201,168,76,0.15);
@@ -60,8 +60,8 @@
 }
 
 .pile-zone__empty {
-  width: 60px;
-  height: 85px;
+  width: 66px;
+  height: 95px;
   border-radius: 7px;
   border: 1.5px dashed rgba(201,168,76,0.2);
   display: flex;
@@ -72,8 +72,8 @@
 }
 
 .pile-zone__rebuild {
-  width: 60px;
-  height: 85px;
+  width: 66px;
+  height: 95px;
   border-radius: 7px;
   border: 1.5px solid rgba(201,168,76,0.4);
   background: rgba(201,168,76,0.08);
@@ -114,15 +114,15 @@
 
 .house-slot {
   position: relative;
-  width: 70px;
-  height: 85px;
+  width: 63px;
+  height: 90px;
   cursor: pointer;
   flex-shrink: 0;
 }
 
 .house-slot__empty {
-  width: 60px;
-  height: 85px;
+  width: 63px;
+  height: 90px;
   border-radius: 7px;
   border: 1.5px dashed rgba(201,168,76,0.2);
   background: rgba(0,0,0,0.1);
@@ -167,8 +167,8 @@
 }
 
 .foundation-slot__empty {
-  width: 48px;
-  height: 68px;
+  width: 56px;
+  height: 80px;
   border-radius: 6px;
   border: 1.5px dashed rgba(201,168,76,0.25);
   background: rgba(0,0,0,0.15);
@@ -193,8 +193,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
+  gap: 4px;
+  padding: 4px 12px;
   background: rgba(0,0,0,0.3);
   border-radius: 10px;
   border: 1px solid var(--gold-dark);
@@ -295,12 +295,20 @@
 @media (max-width: 480px) {
   .board { padding: 6px; gap: 5px; }
   .pile-zone { gap: 8px; padding: 6px; }
-  .pile-zone__empty { width: 52px; height: 75px; }
-  .pile-zone__rebuild { width: 52px; height: 75px; font-size: 1.5em; }
+  .pile-zone__empty {
+  width: 70px;
+  height: 100px; }
+  .pile-zone__rebuild {
+  width: 70px;
+  height: 100px; font-size: 1.5em; }
   .house-slot { width: 52px; min-height: 75px; }
-  .house-slot__empty { width: 52px; height: 75px; }
+  .house-slot__empty {
+  width: 63px;
+  height: 90px; }
   .board__center { gap: 4px; }
-  .foundation-slot__empty { width: 38px; height: 54px; font-size: 1.1em; }
+  .foundation-slot__empty {
+  width: 56px;
+  height: 80px; font-size: 1.1em; }
   .foundation-row { gap: 4px; }
 }
 
@@ -398,7 +406,7 @@
 }
 
 .board__turn-badge {
-  padding: 10px 16px;
+  padding: 5px 12px;
   border-radius: 10px;
   font-family: 'Cinzel', serif;
   font-size: 0.85em;
@@ -417,7 +425,7 @@
 }
 
 .board__stop-badge {
-  padding: 10px 16px;
+  padding: 5px 12px;
   border-radius: 10px;
   font-family: 'Cinzel', serif;
   font-size: 0.9em;
@@ -445,14 +453,14 @@
 }
 
 .board__houses--left .house-slot {
-  width: 60px;
+  width: 63px;
   overflow: visible;
   position: relative;
 }
 
 .board__houses--left .house-slot__stack {
   position: relative;
-  width: 60px;
+  width: 63px;
   overflow: visible;
 }
 
@@ -692,3 +700,4 @@
   background: rgba(181,74,74,0.2);
   border-color: #e37e7e;
 }
+

@@ -169,10 +169,11 @@ export function Board({ config, onReset, onDashboard, onExit }) {
     if (!mandatory || mandatory.length === 0) return false;
 
     // Verificar si la carta seleccionada cumple ALGUNA jugada obligatoria
-    // No importa el orden — cualquier obligatoria es valida primero
+    // Convertir card a formato del engine para comparar con mandatory
+    const rawCard = unadaptCard(card);
     const isFoundationMove = mandatory.some(m =>
       m.type === "foundation" && m.card &&
-      m.card.rank === card.rank && m.card.suit === card.suit
+      m.card.rank === rawCard.rank && m.card.suit === rawCard.suit
     );
     const isFillMove = mandatory.some(m =>
       m.type === "fill_empty_casa" &&
@@ -218,7 +219,7 @@ export function Board({ config, onReset, onDashboard, onExit }) {
       ? canPlayToRivalCrapette(rawCard, rawPile)
       : canPlayToRivalDiscard(rawCard, rawPile);
     if (canPlay) {
-      playToRivalPile(card, selected.source, selected.houseIndex, pileType);
+      playToRivalPile(unadaptCard(card), selected.source, selected.houseIndex, pileType);
       setSelected(null);
     }
   };
@@ -226,14 +227,14 @@ export function Board({ config, onReset, onDashboard, onExit }) {
   // Mover carta a casa
   const moveToHouse = (targetIndex) => {
     if (!selected || !isHumanTurn) return;
-    playToHouse(selected.card, selected.source, selected.houseIndex, targetIndex);
+    playToHouse(unadaptCard(selected.card), selected.source, selected.houseIndex, targetIndex);
     setSelected(null);
   };
 
   // Mover carta a fundacion
   const moveToFoundation = () => {
     if (!selected || !isHumanTurn) return;
-    playToFoundation(selected.card, selected.source, selected.houseIndex);
+    playToFoundation(unadaptCard(selected.card), selected.source, selected.houseIndex);
     setSelected(null);
   };
 
@@ -242,7 +243,7 @@ export function Board({ config, onReset, onDashboard, onExit }) {
     if (!isHumanTurn) return;
     if (selected) {
       if (selected.card.id === card.id) { setSelected(null); return; }
-      playToHouse(selected.card, selected.source, selected.houseIndex, houseIndex);
+      playToHouse(unadaptCard(selected.card), selected.source, selected.houseIndex, houseIndex);
       setSelected(null);
     } else {
       select(card, "house", houseIndex);
