@@ -180,12 +180,8 @@ export function Board({ config, onReset, onDashboard, onExit }) {
       (source === "crapette" || source === "flipped" || source === "house")
     );
 
-    // Si la carta cumple una obligatoria, permitir siempre
-    if (isFoundationMove || isFillMove) return false;
-
-    // Si hay obligatorias pendientes y esta carta no cumple ninguna, declarar stop
-    if (mandatory.length > 0) return true;
-
+    // En Crapette el jugador puede seleccionar cualquier carta libremente
+    // El stop solo aplica al PASAR el turno, no al seleccionar
     return false;
   };
 
