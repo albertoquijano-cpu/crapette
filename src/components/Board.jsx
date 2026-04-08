@@ -11,6 +11,12 @@ import { PILES, HOUSE_PILES, SUIT_FOUNDATIONS } from "../engine/deck.js";
 import "../styles/Board.css";
 
 // ── Adaptador: convierte estado nuevo (pilas numeradas) al formato que espera este Board ──
+// El Board original usa houseIndex 0-7, el engine usa pile IDs 1-8
+// Traduccion: pileId = houseIndex + 1
+const houseIdxToPileId = (idx) => idx + 1;
+// Para fundaciones: el Board usa keys como "spades_human", el engine usa IDs 9-16
+// El adaptState ya convierte foundations al formato del Board
+// Para playToFoundation, el fId ya viene del canPlayToFoundation que usa el rawState
 const SUIT_MAP = { P: 'spades', C: 'hearts', D: 'diamonds', T: 'clubs' };
 const SUIT_MAP_REV = { spades: 'P', hearts: 'C', diamonds: 'D', clubs: 'T' };
 const RANK_MAP_REV = { A: 1, J: 11, Q: 12, K: 13 };
@@ -215,7 +221,7 @@ export function Board({ config, onReset, onDashboard, onExit }) {
       ? canPlayToRivalCrapette(rawCard, rawPile)
       : canPlayToRivalDiscard(rawCard, rawPile);
     if (canPlay) {
-      playToRivalPile(unadaptCard(card), selected.source, selected.houseIndex, pileType);
+      playToRivalPile(unadaptCard(card), selected.source, selected.source === "house" ? houseIdxToPileId(selected.houseIndex) : selected.houseIndex, pileType);
       setSelected(null);
     }
   };
@@ -223,14 +229,14 @@ export function Board({ config, onReset, onDashboard, onExit }) {
   // Mover carta a casa
   const moveToHouse = (targetIndex) => {
     if (!selected || !isHumanTurn) return;
-    playToHouse(unadaptCard(selected.card), selected.source, selected.houseIndex, targetIndex);
+    playToHouse(unadaptCard(selected.card), selected.source, selected.source === "house" ? houseIdxToPileId(selected.houseIndex) : selected.houseIndex, houseIdxToPileId(targetIndex));
     setSelected(null);
   };
 
   // Mover carta a fundacion
   const moveToFoundation = () => {
     if (!selected || !isHumanTurn) return;
-    playToFoundation(unadaptCard(selected.card), selected.source, selected.houseIndex);
+    playToFoundation(unadaptCard(selected.card), selected.source, selected.source === "house" ? houseIdxToPileId(selected.houseIndex) : selected.houseIndex);
     setSelected(null);
   };
 
@@ -239,7 +245,7 @@ export function Board({ config, onReset, onDashboard, onExit }) {
     if (!isHumanTurn) return;
     if (selected) {
       if (selected.card.id === card.id) { setSelected(null); return; }
-      playToHouse(unadaptCard(selected.card), selected.source, selected.houseIndex, houseIndex);
+      playToHouse(unadaptCard(selected.card), selected.source, selected.source === "house" ? houseIdxToPileId(selected.houseIndex) : selected.houseIndex, houseIdxToPileId(houseIndex));
       setSelected(null);
     } else {
       select(card, "house", houseIndex);

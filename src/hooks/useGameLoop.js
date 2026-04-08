@@ -323,7 +323,13 @@ export function useGameLoop(config) {
       return;
     }
     update(
-      { ...newState, statusMessage: `IA: ${move.card.rank} → pila ${move.toPile}` },
+      { ...newState, statusMessage: (() => {
+        const suitNames = { P: 'picas', C: 'corazones', D: 'diamantes', T: 'treboles' };
+        const rankNames = { 1: 'As', 11: 'J', 12: 'Q', 13: 'K' };
+        const r = rankNames[move.card.rank] || move.card.rank;
+        const s = suitNames[move.card.suit] || move.card.suit;
+        return `IA: ${r} de ${s}`;
+      })() },
       move,
     );
     // Animación visual — adaptar al formato que espera Board.jsx original
