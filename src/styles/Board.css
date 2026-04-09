@@ -714,17 +714,7 @@
 
 .board__stop-comic--ai { background: #8e44ad !important; border-color: #d98af0 !important; box-shadow: 0 0 0 6px #8e44ad, 0 0 60px rgba(142,68,173,0.8) !important; text-shadow: 3px 3px 0 #4a235a !important; }
 
-/* Escala proporcional en pantallas anchas */
+
+
 @media (min-width: 600px) {
-  .board {
-    max-width: 520px;
-    margin: 0 auto;
-    transform-origin: top center;
-  }
-  body {
-    background: #1a1208;
-    display: flex;
-    justify-content: center;
-    min-height: 100vh;
-  }
 }
