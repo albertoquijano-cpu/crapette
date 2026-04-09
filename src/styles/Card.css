@@ -1,179 +1,44 @@
-/* Card.css — Estilo King Game */
-
 .card {
   position: relative;
-  width: 70px;
-  height: 95px;
+  width: var(--card-w, 70px);
+  height: var(--card-h, 100px);
   border-radius: 7px;
   border: 2px solid #333;
   background: var(--card-white);
   box-shadow: 2px 3px 8px var(--card-shadow);
   cursor: pointer;
   user-select: none;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
   animation: cardAppear 0.25s ease-out;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   padding: 4px 5px;
   font-family: 'Georgia', 'Times New Roman', serif;
+  box-sizing: border-box;
+  overflow: visible !important;
 }
-
-.card:hover {
-  transform: translateY(-5px);
-  box-shadow: 3px 8px 18px var(--card-shadow);
-}
-
-.card--selected {
-  outline: 2.5px solid var(--gold);
-  transform: translateY(-8px);
-  box-shadow: 0 10px 24px rgba(201,168,76,0.45);
-}
-
+.card * { pointer-events: none; }
+.card:hover { transform: translateY(-4px); box-shadow: 3px 8px 18px var(--card-shadow); }
+.card--selected { outline: 2.5px solid var(--gold); transform: translateY(-8px); box-shadow: 0 10px 24px rgba(201,168,76,0.45); }
 .card--red  { color: var(--card-red); }
 .card--black { color: var(--card-black); }
-
-.card--small {
-  width: 44px;
-  height: 62px;
-  padding: 3px 4px;
-}
-
-.card__corner {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 1;
-}
-
-.card__corner--top-left {
-  top: 4px;
-  left: 4px;
-}
-
-.card__corner--top-right {
-  display: none;
-}
-
-.card__corner--bottom-left {
-  display: none;
-}
-
-.card__corner--bottom-right {
-  bottom: 4px;
-  right: 4px;
-  transform: rotate(180deg);
-  align-items: center;
-}
-
-.card__rank {
-  font-size: 16px;
-  font-weight: bold;
-  line-height: 1;
-  margin-bottom: 1px;
-}
-
-.card__suit {
-  font-size: 13px;
-  line-height: 1;
-}
-
-.card__center {
-  font-size: 38px;
-  text-align: center;
-  line-height: 1;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.card--small .card__center { font-size: 22px; }
-.card--small .card__rank   { font-size: 12px; }
-.card--small .card__suit   { font-size: 10px; }
-
-.card--back {
-  background: linear-gradient(135deg, var(--felt-green-dark) 0%, var(--felt-green) 50%, var(--felt-green-dark) 100%);
-  border: 1.5px solid var(--gold-dark);
-}
-
-.card__back-pattern {
-  position: absolute;
-  inset: 5px;
-  border-radius: 4px;
-  border: 1px solid rgba(201,168,76,0.3);
-  background: repeating-linear-gradient(
-    45deg,
-    rgba(201,168,76,0.04) 0px,
-    rgba(201,168,76,0.04) 2px,
-    transparent 2px,
-    transparent 9px
-  );
-}
-
-.card--empty {
-  background: rgba(0,0,0,0.15);
-  border: 1.5px dashed rgba(201,168,76,0.25);
-  cursor: default;
-  box-shadow: none;
-}
-
+.card__corner { position: absolute; display: flex; flex-direction: column; align-items: center; line-height: 1; }
+.card__corner--top-left { top: 4px; left: 5px; }
+.card__corner--top-right { display: none; }
+.card__corner--bottom-left { display: none; }
+.card__corner--bottom-right { bottom: 4px; right: 5px; transform: rotate(180deg); align-items: center; }
+.card__rank { font-size: 16px; font-weight: bold; line-height: 1; margin-bottom: 1px; }
+.card__suit { font-size: 14px; line-height: 1; }
+.card__center { font-size: 36px; text-align: center; line-height: 1; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+@media (min-width: 1280px) { .card__rank { font-size: 20px; } .card__suit { font-size: 17px; } .card__center { font-size: 50px; } }
+@media (min-width: 768px) and (max-width: 1279px) { .card__rank { font-size: 18px; } .card__suit { font-size: 15px; } .card__center { font-size: 42px; } }
+.card--back { background: linear-gradient(135deg, var(--felt-green-dark) 0%, var(--felt-green) 50%, var(--felt-green-dark) 100%); border: 1.5px solid var(--gold-dark); }
+.card__back-pattern { position: absolute; inset: 5px; border-radius: 4px; border: 1px solid rgba(201,168,76,0.3); background: repeating-linear-gradient(45deg, rgba(201,168,76,0.04) 0px, rgba(201,168,76,0.04) 2px, transparent 2px, transparent 9px); }
+.card--empty { background: rgba(0,0,0,0.15); border: 1.5px dashed rgba(201,168,76,0.25); cursor: default; box-shadow: none; }
 .card--empty:hover { transform: none; }
-
-@media (max-width: 480px) {
-  .card        { width: 52px; height: 75px; }
-  .card--small { width: 38px; height: 54px; }
-  .card__center { font-size: 1.5em; }
-}
-
-/* Fix drag recorte */
-.card { overflow: visible !important; }
-
-/* No bloquear drag events en carta destino */
-.card { pointer-events: auto; }
-.card * { pointer-events: none; }
-
-@keyframes cardAppear {
-  0% {
-    opacity: 0.7;
-    transform: translateY(-80px) scale(1.1);
-    box-shadow: 0 30px 60px rgba(0,0,0,0.5);
-    z-index: 1000;
-  }
-  70% {
-    opacity: 1;
-    transform: translateY(6px) scale(1.03);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    box-shadow: 2px 3px 8px var(--card-shadow);
-  }
-}
-
-/* Carta levantada por la IA — paso 1 de animacion dos pasos */
-.card--lifted {
-  transform: translateY(-18px) scale(1.08) !important;
-  box-shadow: 0 18px 40px rgba(201,168,76,0.6), 0 0 0 2.5px var(--gold) !important;
-  z-index: 500 !important;
-  animation: cardLift 0.25s ease-out forwards !important;
-}
-
-@keyframes cardLift {
-  0%   { transform: translateY(0) scale(1);           box-shadow: 2px 3px 8px var(--card-shadow); }
-  100% { transform: translateY(-18px) scale(1.08);    box-shadow: 0 18px 40px rgba(201,168,76,0.6), 0 0 0 2.5px var(--gold); }
-}
-
-/* Suprimir animacion de aparicion en cartas ya visibles */
-.card--no-appear {
-  animation: cardLift 0.25s ease-out forwards !important;
-}
-
-/* Animacion de vuelo de carta */
-@keyframes flyCard {
-  0%   { transform: translate(0, 0) scale(1.08); opacity: 1; }
-  60%  { transform: translate(calc(var(--fly-dx) * 0.7), calc(var(--fly-dy) * 0.7 - 30px)) scale(1.15); opacity: 1; }
-  100% { transform: translate(var(--fly-dx), var(--fly-dy)) scale(1); opacity: 0.1; }
-}
+.card--lifted { transform: translateY(-18px) scale(1.08) !important; box-shadow: 0 18px 40px rgba(201,168,76,0.6), 0 0 0 2.5px var(--gold) !important; z-index: 500 !important; animation: cardLift 0.25s ease-out forwards !important; }
+.card--no-appear { animation: cardLift 0.25s ease-out forwards !important; }
+.card--ai-selected { outline: 3px solid #4caf50 !important; box-shadow: 0 0 20px rgba(76,175,80,0.95), 0 0 0 3px #4caf50 !important; transform: translateY(-10px) scale(1.08) !important; z-index: 500 !important; animation: none !important; }
+@keyframes cardAppear { 0% { opacity: 0.7; transform: translateY(-60px) scale(1.1); } 70% { opacity: 1; transform: translateY(4px) scale(1.02); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes cardLift { 0% { transform: translateY(0) scale(1); } 100% { transform: translateY(-18px) scale(1.08); } }
