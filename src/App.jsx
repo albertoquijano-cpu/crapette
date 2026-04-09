@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { version } from "../package.json";
-import { Board } from "./components/Board.jsx";
+import { Board } from "./components/BoardV2.jsx";
 import { SplashScreen } from "./components/SplashScreen.jsx";
 import { CreditsScreen } from "./components/CreditsScreen.jsx";
 import { InfoModal } from "./components/InfoModal.jsx";
