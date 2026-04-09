@@ -97,10 +97,11 @@
 .board__center {
   display: flex;
   flex-direction: row;
-  gap: 4px;
-  align-items: flex-start;
+  gap: 8px;
+  align-items: center;
   justify-content: center;
-  flex: 0 1 auto;
+  flex: 1;
+  min-height: 0;
   overflow: visible;
 }
 
