@@ -97,18 +97,19 @@
 .board__center {
   display: flex;
   flex-direction: row;
-  gap: 8px;
-  align-items: center;
+  gap: 4px;
+  align-items: flex-start;
   justify-content: center;
   flex: 1;
   min-height: 0;
+  overflow: visible;
 }
 
 /* Casas */
 .board__houses {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
   align-items: flex-start;
 }
 
@@ -144,7 +145,7 @@
 .board__foundations {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   padding: 10px 12px;
   background: rgba(0,0,0,0.2);
   border-radius: 12px;
@@ -701,3 +702,14 @@
   border-color: #e37e7e;
 }
 
+
+.card--ai-selected{outline:3px solid #4caf50!important;box-shadow:0 0 20px rgba(76,175,80,0.95)!important;transform:translateY(-10px) scale(1.08)!important;z-index:500!important;}
+
+.board__stop-comic--ai {
+  background: #8e44ad !important;
+  border-color: #d98af0 !important;
+  box-shadow: 0 0 0 6px #8e44ad, 0 0 60px rgba(142,68,173,0.8) !important;
+  text-shadow: 3px 3px 0 #4a235a !important;
+}
+
+.board__stop-comic--ai { background: #8e44ad !important; border-color: #d98af0 !important; box-shadow: 0 0 0 6px #8e44ad, 0 0 60px rgba(142,68,173,0.8) !important; text-shadow: 3px 3px 0 #4a235a !important; }

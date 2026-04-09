@@ -2,7 +2,7 @@
 
 .card {
   position: relative;
-  width: 66px;
+  width: 70px;
   height: 95px;
   border-radius: 7px;
   border: 2px solid #333;
@@ -16,7 +16,7 @@
   flex-direction: column;
   justify-content: space-between;
   padding: 4px 5px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Georgia', 'Times New Roman', serif;
 }
 
 .card:hover {
@@ -34,8 +34,8 @@
 .card--black { color: var(--card-black); }
 
 .card--small {
-  width: 50px;
-  height: 70px;
+  width: 44px;
+  height: 62px;
   padding: 3px 4px;
 }
 
@@ -68,7 +68,7 @@
 }
 
 .card__rank {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: bold;
   line-height: 1;
   margin-bottom: 1px;
@@ -80,7 +80,7 @@
 }
 
 .card__center {
-  font-size: 34px;
+  font-size: 38px;
   text-align: center;
   line-height: 1;
   position: absolute;
